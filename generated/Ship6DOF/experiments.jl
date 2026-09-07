@@ -9,8 +9,10 @@ if isfile(joinpath((@__DIR__) |> Base.dirname |> Base.dirname, "dyad", "Ship6DOF
 end
 
 
+include("AntiHeelingRelay_experiment.jl")
 include("AntiHeeling_experiment.jl")
 include("ApparentSpeedXY_experiment.jl")
+include("CableBreakLatch_experiment.jl")
 include("Cable_experiment.jl")
 include("CraneOperation_experiment.jl")
 include("Crane_experiment.jl")
@@ -33,7 +35,11 @@ include("ShipWind_experiment.jl")
 include("SpeedTrial_experiment.jl")
 include("TurningCircle_experiment.jl")
 include("WaypointAutopilot_experiment.jl")
+include("WaypointIndex_experiment.jl")
+include("WaypointSequencer_experiment.jl")
+include("WaypointTransit_experiment.jl")
 include("WingSailSweep_experiment.jl")
 include("WingSail_experiment.jl")
 include("ZigZagController_experiment.jl")
+include("ZigZagRelay_experiment.jl")
 include("ZigZag_experiment.jl")

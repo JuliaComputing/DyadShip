@@ -37,3 +37,39 @@ analysis FullShip6DOFTransient
   extends TransientAnalysis(stop = 2400.0)
   model = FullShip6DOF()
 end
+
+"""
+Multi-waypoint transit: the `StandardShip` stack steered by `WaypointAutopilot`
+through the `WaypointSequencer`'s route (three legs by default, with a dog-leg
+to port), under a 10 m/s wind from the north-east. The sequencer advances its
+clocked index when the ship comes within `arrival_radius` of the active
+waypoint; the throttle ramps down only on the final leg.
+"""
+test component WaypointTransit
+  extends StandardShip(U0 = 5)
+  parameter rpm_full::Real = 100
+  parameter wind_speed::Velocity = 10
+  parameter wind_direction::Real = 45
+  pilot = WaypointAutopilot()
+  route = WaypointSequencer(N = 3, wx = [5000, 8000, 12000], wy = [0, 3000, 3000], radius = 200)
+  env = DyadShip.Environment(WindSpeed = wind_speed, WindDirection = wind_direction)
+  wind = ShipWind()
+relations
+  connect(ship.frame_a, wind.frame_a)
+  wind.Wind_x = env.WindVector[1]
+  wind.Wind_y = env.WindVector[2]
+  route.pos_x = ship.pos_x
+  route.pos_y = ship.pos_y
+  pilot.pos_x = ship.pos_x
+  pilot.pos_y = ship.pos_y
+  pilot.psi = ship.Yaw
+  pilot.target_x = route.target_x
+  pilot.target_y = route.target_y
+  rudder_order = pilot.rudder
+  shaft_rpm = rpm_full * ifelse(route.final_leg > 0.5, pilot.throttle, 1)
+end
+
+analysis WaypointTransitTransient
+  extends TransientAnalysis(stop = 3600.0)
+  model = WaypointTransit()
+end

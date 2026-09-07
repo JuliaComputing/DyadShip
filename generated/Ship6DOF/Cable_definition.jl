@@ -7,21 +7,7 @@
 import Moshi as __Ext__Moshi
 
 @doc Markdown.doc"""
-   Cable(; name, fixed_rotation_at_frame_a, fixed_rotation_at_frame_b, s_small, k, d, RotureStrength, T_break)
-
-Tension-only elastic cable between two 3D frames, with a latching break.
-
-Port of `ShipSIM.SubComponents.Cable` on `MultibodyComponents.PartialLineForce`:
-the cable pulls its two frames together along the line joining them with
-`f = k (s - SetLength) + d der(s)` when it is longer than its unstretched
-length `SetLength` (an input, so a winch can pay it out), and carries no
-force when slack. It transmits no torque; set `fixed_rotation_at_frame_b =
-true` when a body without its own orientation states hangs from `frame_b`.
-
-The upstream break event (`when k (s - SetLength) > RotureStrength`) is
-realised as a latching relay state `intact` that decays to zero once the
-elastic tension exceeds `RotureStrength` and never recovers; the force is
-multiplied by it, so a broken cable goes slack within `T_break` seconds.
+   Cable(; name, fixed_rotation_at_frame_a, fixed_rotation_at_frame_b, dt_check, s_small, k, d, RotureStrength)
 
 ## Parameters:
 
@@ -29,11 +15,11 @@ multiplied by it, so a broken cable goes slack within `T_break` seconds.
 | ------------ | ----------------------------------- | ------ | --------------- |
 | `fixed_rotation_at_frame_a`         |                          | --  |   false |
 | `fixed_rotation_at_frame_b`         |                          | --  |   false |
+| `dt_check`         | Sampling period of the break check                         | --  |   0.05 |
 | `s_small`         |                          | --  |   1e-10 |
 | `k`         | Cable stiffness                         | N/m  |   1e5 |
 | `d`         | Cable damping                         | N.s/m  |   0 |
 | `RotureStrength`         | Break tension; the cable parts when the elastic tension exceeds it                         | N  |   1e12 |
-| `T_break`         | Time scale of the break relay                         | s  |   0.2 |
 
 ## Connectors
 
@@ -58,7 +44,7 @@ connectors that can be connected together ([`Frame3D`](@ref))
 | `intact`         | 1 while the cable is intact, 0 after it has parted                         | --  |
 | `f_elastic`         | Elastic tension before the break check                         | N  |
 """
-@component function Cable(; name = nothing, fixed_rotation_at_frame_a=false, fixed_rotation_at_frame_b=false, s_small=1e-10, k=Float64(100000.0), d=Float64(0), RotureStrength=Float64(1000000000000.0), T_break=0.2, kwargs...)
+@component function Cable(; name = nothing, fixed_rotation_at_frame_a=false, fixed_rotation_at_frame_b=false, dt_check=0.05, s_small=1e-10, k=Float64(100000.0), d=Float64(0), RotureStrength=Float64(1000000000000.0), kwargs...)
   isnothing(name) && throw(ArgumentError("""
     The `name` keyword must be provided. Please consider using the `@named` macro,
     like so:
@@ -101,9 +87,6 @@ connectors that can be connected together ([`Frame3D`](@ref))
   __local__RotureStrength = RotureStrength
   append!(__params, @parameters (RotureStrength::Real), [description = "Break tension; the cable parts when the elastic tension exceeds it"])
   __initial_conditions[RotureStrength] = __local__RotureStrength
-  __local__T_break = T_break
-  append!(__params, @parameters (T_break::Real), [description = "Time scale of the break relay"])
-  __initial_conditions[T_break] = __local__T_break
 
   ### Final Parameters (assignments)
 
@@ -157,6 +140,18 @@ connectors that can be connected together ([`Frame3D`](@ref))
   ### Components
   push!(__systems, @named frame_a = __Dyad__Frame3D())
   push!(__systems, @named frame_b = __Dyad__Frame3D())
+  # Subcomponent sampler of type DiscreteComponents.Sampler
+  sampler_overrides = __pop_subcomponent_overrides!(__overrides, "sampler")
+  push!(__systems, @named sampler = DiscreteComponents.Sampler(; sampler_overrides...))
+  # Subcomponent clock of type DiscreteComponents.PeriodicClock
+  clock_overrides = __pop_subcomponent_overrides!(__overrides, "clock")
+  push!(__systems, @named clock = DiscreteComponents.PeriodicClock(; dt=dt_check, clock_overrides...))
+  # Subcomponent latch of type DyadShip.Ship6DOF.CableBreakLatch
+  latch_overrides = __pop_subcomponent_overrides!(__overrides, "latch")
+  push!(__systems, @named latch = DyadShip.Ship6DOF.CableBreakLatch(; RotureStrength=RotureStrength, latch_overrides...))
+  # Subcomponent hold of type DiscreteComponents.ZeroOrderHold
+  hold_overrides = __pop_subcomponent_overrides!(__overrides, "hold")
+  push!(__systems, @named hold = DiscreteComponents.ZeroOrderHold(; initial_condition=Float64(1), hold_overrides...))
 
   ### Check there are no unmatched overrides
   isempty(__overrides) || throw(ArgumentError("overrides: [$(join(keys(__overrides), ", "))] don't match names found in model. These names may exist in the model but could have been conditionally excluded."))
@@ -173,7 +168,6 @@ connectors that can be connected together ([`Frame3D`](@ref))
   isnothing(__ovr_f_elastic__guess) || (__guesses[f_elastic] = __ovr_f_elastic__guess)
 
   ### Initialization Equations
-  push!(__initialization_eqs, intact ~ 1)
 
   ### Assertions
   __assertions = []
@@ -189,9 +183,12 @@ connectors that can be connected together ([`Frame3D`](@ref))
   push!(__eqs, frame_a.f ~ -e_a * f)
   push!(__eqs, frame_b.f ~ -MultibodyComponents.resolve2(frame_b.R, MultibodyComponents.resolve1(frame_a.R, frame_a.f)))
   push!(__eqs, f_elastic ~ ifelse(s > SetLength, k * (s - SetLength), 0))
-  push!(__eqs, ModelingToolkit.D_nounits(intact) ~ (ifelse(intact > 0.5, ifelse(f_elastic > RotureStrength, 0, 1), 0) - intact) / T_break)
+  push!(__eqs, sampler.u ~ f_elastic)
+  push!(__eqs, intact ~ hold.y)
   push!(__eqs, f ~ intact * ifelse(s > SetLength, k * (s - SetLength) + d * ModelingToolkit.D_nounits(s), 0))
   push!(__eqs, Tension ~ f)
+  push!(__eqs, connect(sampler.y, latch.f, clock.y))
+  push!(__eqs, connect(latch.intact, hold.u))
 
   ### Control Structures
   if fixed_rotation_at_frame_a

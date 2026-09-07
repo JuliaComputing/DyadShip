@@ -7,7 +7,7 @@
 import Moshi as __Ext__Moshi
 
 @doc Markdown.doc"""
-   EventPeakSampler(; name)
+   EventPeakSampler(; name, T_slope)
 
 Event-driven peak sampler: the output latches the value of `u` at every
 local extremum, i.e. at each zero crossing of `der(u)`, using the clocked
@@ -16,12 +16,24 @@ sublanguage from `DiscreteComponents` (a `ZeroCrossingClock` driving a
 strict version of the upstream `ShipSIM.Components.DataProcessing.PeakSampler`;
 `PeakSampler` is the continuous approximation.
 
+Read the sampled series from a solution through the clocked signal,
+`sol[m.sampler.sampler.y]` (one entry per extremum); the held continuous
+output `y` is stored as a discrete parameter timeseries that symbolic
+indexing of the continuous solution does not reconstruct. The derivative
+filter time `T_slope` sets how sharply the turning point is located.
+
+## Parameters:
+
+| Name         | Description                         | Units  |   Default value |
+| ------------ | ----------------------------------- | ------ | --------------- |
+| `T_slope`         | Time constant of the derivative filter that locates the turning points                         | s  |   0.01 |
+
 ## Connectors
 
  * `u` - This connector represents a real signal as an input to a component ([`RealInput`](@ref))
  * `y` - This connector represents a real signal as an output from a component ([`RealOutput`](@ref))
 """
-@component function EventPeakSampler(; name = nothing, kwargs...)
+@component function EventPeakSampler(; name = nothing, T_slope=0.01, kwargs...)
   isnothing(name) && throw(ArgumentError("""
     The `name` keyword must be provided. Please consider using the `@named` macro,
     like so:
@@ -52,6 +64,9 @@ strict version of the upstream `ShipSIM.Components.DataProcessing.PeakSampler`;
   ### Deferred assignment (default values that depend on final parameters)
 
   ### Symbolic Parameters
+  __local__T_slope = T_slope
+  append!(__params, @parameters (T_slope::Real), [description = "Time constant of the derivative filter that locates the turning points"])
+  __initial_conditions[T_slope] = __local__T_slope
 
   ### Final Parameters (assignments)
 
@@ -69,7 +84,7 @@ strict version of the upstream `ShipSIM.Components.DataProcessing.PeakSampler`;
   ### Components
   # Subcomponent slope of type BlockComponents.Continuous.Derivative
   slope_overrides = __pop_subcomponent_overrides!(__overrides, "slope")
-  push!(__systems, @named slope = BlockComponents.Continuous.Derivative(; k=Float64(1), T=0.01, slope_overrides...))
+  push!(__systems, @named slope = BlockComponents.Continuous.Derivative(; k=Float64(1), T=T_slope, slope_overrides...))
   # Subcomponent clock of type DiscreteComponents.ZeroCrossingClock
   clock_overrides = __pop_subcomponent_overrides!(__overrides, "clock")
   push!(__systems, @named clock = DiscreteComponents.ZeroCrossingClock(; clock_overrides...))

@@ -7,17 +7,18 @@
 import Moshi as __Ext__Moshi
 
 @doc Markdown.doc"""
-   AntiHeeling(; name, B, b, V_tk, rho, Q, max_angle, off_angle, ramp_time, startup_delay, T_relay, g)
+   AntiHeeling(; name, dt, B, b, V_tk, rho, Q, max_angle, off_angle, ramp_time, startup_delay, g)
 
 Anti-heeling system applying its righting moment to a 3D hull frame.
 
 Port of `ShipSIM.Components.AntiHeelingSystem.AntiHeeling`. The controller
-is the upstream hysteresis: the pump starts when `|heel|` exceeds
-`max_angle` and stops again only when the heel has returned below
-`off_angle`, realised as a latching relay state (Dyad has no events). The
-pump flow then ramps to `Q` over `ramp_time` seconds, the upstream
-triggered trapezoid, through a `BlockComponents` slew-rate limiter. The
-pump is held off before `startup_delay`.
+is the upstream hysteresis (an on/off controller sampled every `dt`
+seconds on a `DiscreteComponents.PeriodicClock`): the pump starts when
+`|heel|` exceeds `max_angle` and stops again only when the heel has
+returned below `off_angle`; the clocked `AntiHeelingRelay` keeps the state
+between samples. The pump flow then ramps to `Q` over `ramp_time` seconds,
+the upstream triggered trapezoid, through a `BlockComponents` slew-rate
+limiter. The pump is held off before `startup_delay`.
 
 The transferred moment `M_tks` integrates the pump flow times the liquid
 density and the tank separation `B - b`, saturating at the moment the
@@ -30,6 +31,7 @@ overflow volume `0.4 V_tk` can produce, and is applied as a roll moment
 
 | Name         | Description                         | Units  |   Default value |
 | ------------ | ----------------------------------- | ------ | --------------- |
+| `dt`         | Sampling period of the on/off controller                         | --  |   1.0 |
 | `B`         | Ship design beam                         | m  |   24.3 |
 | `b`         | Anti-heeling tank beam                         | m  |   6.35 |
 | `V_tk`         | Volume of each tank [m³]                         | --  |   211.47 |
@@ -39,7 +41,6 @@ overflow volume `0.4 V_tk` can produce, and is applied as a roll moment
 | `off_angle`         | Heel below which the pump stops [deg]                         | --  |   0.001 |
 | `ramp_time`         | Ramp-up time of the pump flow [s]                         | s  |   10 |
 | `startup_delay`         | Pump is held off before this time [s]                         | s  |   500 |
-| `T_relay`         | Time scale of the on/off relay                         | s  |   0.5 |
 | `g`         |                          | m/s2  |   9.80665 |
 
 ## Connectors
@@ -56,13 +57,13 @@ connectors that can be connected together ([`Frame3D`](@ref))
 
 | Name         | Description                         | Units  | 
 | ------------ | ----------------------------------- | ------ |
-| `on`         | Relay state, 1 = pump commanded on                         | --  |
+| `on`         | Pump command from the relay, 1 = on                         | --  |
 | `M_tks`         | Moment produced by the tanks [t m]                         | --  |
 | `v_max`         | Maximum overflow volume [m³]                         | --  |
 | `M_max`         | Maximum moment the tanks can produce [t m]                         | --  |
 | `sgn`         | Smooth sign of the heel                         | --  |
 """
-@component function AntiHeeling(; name = nothing, B=24.3, b=6.35, V_tk=211.47, rho=1.025, Q=Float64(200), max_angle=0.1, off_angle=0.001, ramp_time=Float64(10), startup_delay=Float64(500), T_relay=0.5, g=9.80665, kwargs...)
+@component function AntiHeeling(; name = nothing, dt=Float64(1.0), B=24.3, b=6.35, V_tk=211.47, rho=1.025, Q=Float64(200), max_angle=0.1, off_angle=0.001, ramp_time=Float64(10), startup_delay=Float64(500), g=9.80665, kwargs...)
   isnothing(name) && throw(ArgumentError("""
     The `name` keyword must be provided. Please consider using the `@named` macro,
     like so:
@@ -120,9 +121,6 @@ connectors that can be connected together ([`Frame3D`](@ref))
   __local__startup_delay = startup_delay
   append!(__params, @parameters (startup_delay::Real), [description = "Pump is held off before this time [s]"])
   __initial_conditions[startup_delay] = __local__startup_delay
-  __local__T_relay = T_relay
-  append!(__params, @parameters (T_relay::Real), [description = "Time scale of the on/off relay"])
-  __initial_conditions[T_relay] = __local__T_relay
   __local__g = g
   append!(__params, @parameters (g::Real))
   __initial_conditions[g] = __local__g
@@ -137,7 +135,7 @@ connectors that can be connected together ([`Frame3D`](@ref))
   append!(__vars, @variables (pump_on(t)::Real), [output = true])
 
   ### Variables (declarations)
-  append!(__vars, @variables (on(t)::Real), [description = "Relay state, 1 = pump commanded on"])
+  append!(__vars, @variables (on(t)::Real), [description = "Pump command from the relay, 1 = on"])
   append!(__vars, @variables (M_tks(t)::Real), [description = "Moment produced by the tanks [t m]"])
   append!(__vars, @variables (v_max(t)::Real), [description = "Maximum overflow volume [m³]"])
   append!(__vars, @variables (M_max(t)::Real), [description = "Maximum moment the tanks can produce [t m]"])
@@ -171,6 +169,18 @@ connectors that can be connected together ([`Frame3D`](@ref))
   # Subcomponent torque of type MultibodyComponents.WorldTorque
   torque_overrides = __pop_subcomponent_overrides!(__overrides, "torque")
   push!(__systems, @named torque = MultibodyComponents.WorldTorque(; resolve_in_frame=MultibodyComponents.ResolveInFrame.FrameB(), torque_overrides...))
+  # Subcomponent sampler of type DiscreteComponents.Sampler
+  sampler_overrides = __pop_subcomponent_overrides!(__overrides, "sampler")
+  push!(__systems, @named sampler = DiscreteComponents.Sampler(; sampler_overrides...))
+  # Subcomponent clock of type DiscreteComponents.PeriodicClock
+  clock_overrides = __pop_subcomponent_overrides!(__overrides, "clock")
+  push!(__systems, @named clock = DiscreteComponents.PeriodicClock(; dt=dt, clock_overrides...))
+  # Subcomponent relay of type DyadShip.Ship6DOF.AntiHeelingRelay
+  relay_overrides = __pop_subcomponent_overrides!(__overrides, "relay")
+  push!(__systems, @named relay = DyadShip.Ship6DOF.AntiHeelingRelay(; max_angle=max_angle, off_angle=off_angle, relay_overrides...))
+  # Subcomponent hold of type DiscreteComponents.ZeroOrderHold
+  hold_overrides = __pop_subcomponent_overrides!(__overrides, "hold")
+  push!(__systems, @named hold = DiscreteComponents.ZeroOrderHold(; initial_condition=Float64(0), hold_overrides...))
 
   ### Check there are no unmatched overrides
   isempty(__overrides) || throw(ArgumentError("overrides: [$(join(keys(__overrides), ", "))] don't match names found in model. These names may exist in the model but could have been conditionally excluded."))
@@ -183,7 +193,6 @@ connectors that can be connected together ([`Frame3D`](@ref))
   isnothing(__ovr_sgn__guess) || (__guesses[sgn] = __ovr_sgn__guess)
 
   ### Initialization Equations
-  push!(__initialization_eqs, on ~ 0)
   push!(__initialization_eqs, M_tks ~ 0)
 
   ### Assertions
@@ -191,9 +200,10 @@ connectors that can be connected together ([`Frame3D`](@ref))
 
   ### Equations
   push!(__eqs, heel_out ~ ship_heel)
-  push!(__eqs, ModelingToolkit.D_nounits(on) ~ (ifelse(t < startup_delay, 0, ifelse(on > 0.5, ifelse(abs(ship_heel) < off_angle, 0, 1), ifelse(abs(ship_heel) > max_angle, 1, 0))) - on) / T_relay)
+  push!(__eqs, sampler.u ~ abs(ship_heel))
+  push!(__eqs, on ~ hold.y)
   push!(__eqs, pump_on ~ on)
-  push!(__eqs, ramp.u ~ Q * clamp(on, 0, 1))
+  push!(__eqs, ramp.u ~ Q * clamp(on, 0, 1) * ifelse(t < startup_delay, 0, 1))
   push!(__eqs, pump_flow ~ ramp.y)
   push!(__eqs, v_max ~ V_tk * 0.4)
   push!(__eqs, M_max ~ rho * v_max * (B - b))
@@ -204,6 +214,8 @@ connectors that can be connected together ([`Frame3D`](@ref))
   push!(__eqs, torque.torque_y ~ 0)
   push!(__eqs, torque.torque_z ~ 0)
   push!(__eqs, connect(frame_a, torque.frame_b))
+  push!(__eqs, connect(sampler.y, relay.heel_abs, clock.y))
+  push!(__eqs, connect(relay.on, hold.u))
 
   # Return completely constructed System
   return System(__eqs, t, __vars, __params; systems=__systems, initial_conditions=__initial_conditions, guesses=__guesses, name, initialization_eqs=__initialization_eqs, bindings=__bindings, assertions=__assertions)

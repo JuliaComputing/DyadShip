@@ -1,0 +1,71 @@
+"""
+Clocked waypoint index: from the sampled position and its own previous index
+it computes the distance to the active waypoint and advances the index (up to
+`N`) once that distance is inside `radius`. Using the previous index for the
+distance keeps the clocked update explicit.
+"""
+component WaypointIndex@[input clk extends Discrete]
+  "Sampled ship position"
+  px = RealInput@[clk]()
+  py = RealInput@[clk]()
+  "Active waypoint index, 1..N"
+  i = RealOutput@[clk]()
+  structural parameter N::Integer = 2
+  "Waypoint world x coordinates"
+  parameter wx::Real[N] = [1000, 2000]
+  "Waypoint world y coordinates"
+  parameter wy::Real[N] = [0, 0]
+  "Arrival radius"
+  parameter radius::Length = 200
+  "Index used for this sample's distance"
+  variable i_prev::Real
+  "Distance to the active waypoint at the sample"
+  variable dist::Real
+relations
+  i_prev@clk = i@(clk-1)
+  dist@clk = sqrt((select_by_index(wx, i_prev@clk) - px@clk)^2 + (select_by_index(wy, i_prev@clk) - py@clk)^2)
+  i@clk = ifelse(dist@clk < radius, min(i_prev@clk + 1, N), i_prev@clk)
+  initial i@(clk-1) = 1
+end
+
+"""
+Waypoint table for the autopilot, the cycling logic `ShipSIM`'s
+`SimpleAutoPilot` implements with `when` events. The ship position is sampled
+every `dt` seconds on a `DiscreteComponents.PeriodicClock`; the clocked
+`WaypointIndex` advances through the `N` waypoints as each is reached within
+`radius`, and the held index selects the active target coordinates.
+`final_leg` is 1 while the last waypoint is active, so a throttle ramp can be
+applied on arrival only.
+"""
+component WaypointSequencer
+  pos_x = RealInput()
+  pos_y = RealInput()
+  "Active waypoint coordinates"
+  target_x = RealOutput()
+  target_y = RealOutput()
+  "Active waypoint index"
+  index = RealOutput()
+  "1 while the last waypoint is active"
+  final_leg = RealOutput()
+  structural parameter N::Integer = 2
+  parameter wx::Real[N] = [1000, 2000]
+  parameter wy::Real[N] = [0, 0]
+  parameter radius::Length = 200
+  "Sampling period of the waypoint logic"
+  structural parameter dt::Real = 1.0
+  sampler_x = DiscreteComponents.Sampler()
+  sampler_y = DiscreteComponents.Sampler()
+  clock = DiscreteComponents.PeriodicClock(dt = dt)
+  counter = WaypointIndex(N = N, wx = wx, wy = wy, radius = radius)
+  hold = DiscreteComponents.ZeroOrderHold(initial_condition = 1)
+relations
+  connect(pos_x, sampler_x.u)
+  connect(pos_y, sampler_y.u)
+  connect(sampler_x.y, counter.px, clock.y)
+  connect(sampler_y.y, counter.py)
+  connect(counter.i, hold.u)
+  index = hold.y
+  target_x = select_by_index(wx, index)
+  target_y = select_by_index(wy, index)
+  final_leg = ifelse(index > N - 0.5, 1, 0)
+end

@@ -52,10 +52,10 @@ starboard down, positive trim is bow down. Wind and current directions are
 | `Propulsion.Rudder` | `Ship6DOF.Rudder`, planar `Propulsion.Rudder` | 3D: 2D tables from `assets/naca*.csv` |
 | `AlternativePropulsion.WingSail` | `Ship6DOF.WingSail` | servo revolute, NACA tables, forces at the rotated quarter chord |
 | (new) | planar `Propulsion.FlettnerRotor`, `FlettnerRotorOnline` | WaterLily-derived Magnus coefficients |
-| `AutoPilot.SimpleAutoPilot` | `Ship.HeadingAutoPilot` (PI + throttle ramp), `Ship6DOF.WaypointAutopilot` (`LimPID`) | waypoint cycling dropped (no events) |
-| `AntiHeelingSystem.AntiHeeling`, `Tank` | `Ship6DOF.AntiHeeling`, `Ship.Tank` | hysteresis and ramp reproduced with a relay state and a slew-rate limiter |
+| `AutoPilot.SimpleAutoPilot` | `Ship.HeadingAutoPilot` (PI + throttle ramp), `Ship6DOF.WaypointAutopilot` (`LimPID`) + `WaypointSequencer` (clocked waypoint table) | |
+| `AntiHeelingSystem.AntiHeeling`, `Tank` | `Ship6DOF.AntiHeeling`, `Ship.Tank` | clocked on/off hysteresis (`AntiHeelingRelay`) and slew-rate ramp |
 | `Machines.SimpleDieselEngine` | `Propulsion.SimpleDieselEngine` | tables inlined as `ifelse` |
-| `Machines.Crane`, `SubComponents.Cable` | `Ship6DOF.Crane`, `Ship6DOF.Cable` | 3D; cable break as a latching relay instead of an event |
+| `Machines.Crane`, `SubComponents.Cable` | `Ship6DOF.Crane`, `Ship6DOF.Cable` | 3D; cable break as a clocked latch (`CableBreakLatch`) |
 | `Electrical.OnOffConsumer` | `Machinery.OnOffConsumer` | driven by a work signal instead of a random schedule |
 | `DataProcessing.PeakSampler` | `Machinery.EventPeakSampler`, `Machinery.PeakSampler` | event-driven (`DiscreteComponents.ZeroCrossingClock`) and continuous peak-hold |
 | `Others.Solar.*`, `Others.HeatTransfer.*`, `MoistAir.DewTemperature` | `Thermal.*` | see docstrings |
@@ -102,12 +102,19 @@ belongs in a Julia post-processor), `TriggerConsumer` / `StartGenerator`
 dyad-3.3.0) brings a clocked sublanguage to Dyad: components and connectors
 tagged `@[clk]`, `x@(clk-1)` for the previous sample, `PeriodicClock`,
 `ZeroCrossingClock`, `Sampler`, `ZeroOrderHold`, delays, discrete PID and
-binary (hysteresis) controllers, seeded noise. `EventPeakSampler` uses it and
-is validated. This covers what the relay approximations stand in for: the
-zig-zag switch, the anti-heeling on/off controller, the cable break latch,
-waypoint cycling in the autopilot and the random schedules of
-`TriggerConsumer` / `StartGenerator` can all be written as clocked logic.
+binary (hysteresis) controllers, seeded noise. `EventPeakSampler`, the
+`ZigZagRelay`, `AntiHeelingRelay`, `CableBreakLatch` and `WaypointIndex`
+clocked components use it (each wrapped as Sampler → clocked logic →
+ZeroOrderHold on a `PeriodicClock`), and the zig-zag, sailing, crane and
+waypoint analyses validate them. The random schedules of `TriggerConsumer` /
+`StartGenerator` can be written the same way with the seeded noise sources.
 `RainflowCounter` needs loops over a stack and remains a Julia post-processor.
+Two caveats: a periodic clock forces a solver step per tick (a 0.1 s clock
+over 600 s is 6000 events, about ten times the step count of the continuous
+relay), and the `ZeroOrderHold` continuous output reads back as its final
+value through symbolic indexing of the solution, so post-process the clocked
+signal itself (`sol[m.path.relay.s]`, one entry per tick) or the physical
+response.
 Installing it precompiles a Lustre toolchain (`Heptagon_jll`,
 `Clang_unified_jll`): use `JULIA_NUM_PRECOMPILE_TASKS=1` and a 12 GB cap.
 
@@ -158,9 +165,9 @@ Installing it precompiles a Lustre toolchain (`Heptagon_jll`,
   for a stiffer hull.
 - No wave excitation, no shallow-water effects, no propeller transverse
   thrust in the crash stop.
-- The zig-zag relay, the anti-heeling controller and the cable break are
-  still continuous relay approximations of hysteresis and latching; they can
-  now be rewritten on `DiscreteComponents` clocks (see above).
+- Clocked logic is sampled (0.05–1 s periods), not event-exact; use a
+  `ZeroCrossingClock` where the crossing instant matters (as in
+  `EventPeakSampler`), at the cost of the `dtmax` caveat in DiscreteComponents.
 - Pods, sails and the crane have no aerodynamic/hydrodynamic interaction
   between units (no sail-sail interference, no pod-hull interaction).
 - Small-angle hydrostatics (about ±20° heel/trim), as upstream.

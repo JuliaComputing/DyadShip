@@ -64,14 +64,12 @@ savefig(p, joinpath(ASSETS, "ship6dof_rudder_return.png"))
 println("== Zig-zag 20/20")
 res = S6.ZigZagTransient(); sol = res.sol; m = symbolic_container(res)
 ts = collect(0:0.25:600); psi = rad2deg.(sample(sol, m.ship.Yaw, ts)); rud = sample(sol, m.rudder.Rudder_position, ts)
-s = sample(sol, m.controller.s, ts)
-rev = [ts[i] for i in 2:length(ts) if sign(s[i]) != sign(s[i-1])]
-overshoots = Float64[]
-for k in 1:min(length(rev) - 1, 4)
-    seg = (ts .>= rev[k]) .& (ts .< rev[k+1])
-    push!(overshoots, maximum(abs.(psi[seg])) - 20)
-end
-@printf("  retcode %s, rudder reversals at %s s, overshoot angles %s deg\n", sol.retcode, join(round.(rev[1:min(end, 4)], digits = 0), ", "), join(round.(overshoots, digits = 1), ", "))
+# Heading extremes beyond the switching angle; the clocked relay state itself
+# is only available per tick through sol[m.controller.relay.s]
+ext = [i for i in 2:length(ts)-1 if (psi[i] - psi[i-1]) * (psi[i+1] - psi[i]) < 0 && abs(psi[i]) > 20]
+overshoots = [abs(psi[i]) - 20 for i in ext[1:min(end, 4)]]
+nrev = count(i -> sol[m.controller.relay.s][i] != sol[m.controller.relay.s][i-1], 2:length(sol[m.controller.relay.s]))
+@printf("  retcode %s, %d relay reversals, heading extremes at %s s, overshoot angles %s deg\n", sol.retcode, nrev, join(round.(ts[ext[1:min(end, 4)]], digits = 0), ", "), join(round.(overshoots, digits = 1), ", "))
 p = plot(ts, psi, xlabel = "t [s]", ylabel = "[deg]", label = "heading", title = "20/20 zig-zag", lw = 2)
 plot!(p, ts, rud, label = "rudder", lw = 2)
 savefig(p, joinpath(ASSETS, "ship6dof_zigzag.png"))
@@ -116,6 +114,15 @@ ts = collect(0:0.5:400); heel = rad2deg.(sample(sol, m.ship.Heel, ts)); tension 
 p = plot(ts, heel, xlabel = "t [s]", ylabel = "[deg], [m]", label = "heel", title = "Crane: luff 20-40 s, slew 45-100 s, pay out 100-300 s", lw = 2)
 plot!(p, ts, sample(sol, m.load.r_0[3], ts), label = "load height", lw = 2)
 savefig(p, joinpath(ASSETS, "ship6dof_crane.png"))
+
+println("== Multi-waypoint transit (clocked waypoint sequencer), 10 m/s wind from NE")
+res = S6.WaypointTransitTransient(); sol = res.sol; m = symbolic_container(res)
+idx = sol[m.route.counter.i]; sw = findall(i -> idx[i] != idx[i-1], 2:length(idx)) .+ 1
+ts = collect(0:2:3600); x = sample(sol, m.ship.pos_x, ts); y = sample(sol, m.ship.pos_y, ts)
+@printf("  retcode %s, waypoint switches at samples %s of the 1 s clock, track ends at (%.0f, %.0f)\n", sol.retcode, string(sw), x[end], y[end])
+p = plot(x, y, aspect_ratio = 1, xlabel = "x [m]", ylabel = "y [m]", label = "track", title = "Three-waypoint transit", lw = 2)
+scatter!(p, [5000, 8000, 12000], [0, 3000, 3000], label = "waypoints", ms = 6)
+savefig(p, joinpath(ASSETS, "ship6dof_waypoints.png"))
 
 println("== Autopilot transit, 10 m/s wind from NE")
 res = S6.FullShip6DOFTransient(); sol = res.sol; m = symbolic_container(res)

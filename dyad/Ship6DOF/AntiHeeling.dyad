@@ -1,13 +1,30 @@
 """
+Clocked on/off state of the anti-heeling pump with hysteresis between
+`off_angle` and `max_angle` on the sampled absolute heel.
+"""
+component AntiHeelingRelay@[input clk extends Discrete]
+  "Sampled absolute heel [deg]"
+  heel_abs = RealInput@[clk]()
+  "Pump command, 1 = on"
+  on = RealOutput@[clk]()
+  parameter max_angle::Real = 0.1
+  parameter off_angle::Real = 0.001
+relations
+  on@clk = ifelse(on@(clk-1) > 0.5, ifelse(heel_abs@clk < off_angle, 0, 1), ifelse(heel_abs@clk > max_angle, 1, 0))
+  initial on@(clk-1) = 0
+end
+
+"""
 Anti-heeling system applying its righting moment to a 3D hull frame.
 
 Port of `ShipSIM.Components.AntiHeelingSystem.AntiHeeling`. The controller
-is the upstream hysteresis: the pump starts when `|heel|` exceeds
-`max_angle` and stops again only when the heel has returned below
-`off_angle`, realised as a latching relay state (Dyad has no events). The
-pump flow then ramps to `Q` over `ramp_time` seconds, the upstream
-triggered trapezoid, through a `BlockComponents` slew-rate limiter. The
-pump is held off before `startup_delay`.
+is the upstream hysteresis (an on/off controller sampled every `dt`
+seconds on a `DiscreteComponents.PeriodicClock`): the pump starts when
+`|heel|` exceeds `max_angle` and stops again only when the heel has
+returned below `off_angle`; the clocked `AntiHeelingRelay` keeps the state
+between samples. The pump flow then ramps to `Q` over `ramp_time` seconds,
+the upstream triggered trapezoid, through a `BlockComponents` slew-rate
+limiter. The pump is held off before `startup_delay`.
 
 The transferred moment `M_tks` integrates the pump flow times the liquid
 density and the tank separation `B - b`, saturating at the moment the
@@ -31,6 +48,10 @@ component AntiHeeling
 
   ramp = BlockComponents.Nonlinear.SlewRateLimiter(rising = Q / ramp_time, td = 0.05)
   torque = MultibodyComponents.WorldTorque(resolve_in_frame = MultibodyComponents.ResolveInFrame.FrameB())
+  sampler = DiscreteComponents.Sampler()
+  clock = DiscreteComponents.PeriodicClock(dt = dt)
+  relay = AntiHeelingRelay(max_angle = max_angle, off_angle = off_angle)
+  hold = DiscreteComponents.ZeroOrderHold(initial_condition = 0)
 
   "Ship design beam"
   parameter B::Length = 24.3
@@ -50,11 +71,11 @@ component AntiHeeling
   parameter ramp_time::Time = 10
   "Pump is held off before this time [s]"
   parameter startup_delay::Time = 500
-  "Time scale of the on/off relay"
-  parameter T_relay::Time = 0.5
+  "Sampling period of the on/off controller"
+  structural parameter dt::Real = 1.0
   parameter g::Acceleration = 9.80665
 
-  "Relay state, 1 = pump commanded on"
+  "Pump command from the relay, 1 = on"
   variable on::Real
   "Moment produced by the tanks [t m]"
   variable M_tks::Real
@@ -66,12 +87,14 @@ component AntiHeeling
   variable sgn::Real
 relations
   connect(frame_a, torque.frame_b)
-  initial on = 0
   initial M_tks = 0
   heel_out = ship_heel
-  der(on) = (ifelse(time < startup_delay, 0, ifelse(on > 0.5, ifelse(abs(ship_heel) < off_angle, 0, 1), ifelse(abs(ship_heel) > max_angle, 1, 0))) - on) / T_relay
+  sampler.u = abs(ship_heel)
+  connect(sampler.y, relay.heel_abs, clock.y)
+  connect(relay.on, hold.u)
+  on = hold.y
   pump_on = on
-  ramp.u = Q * clamp(on, 0, 1)
+  ramp.u = Q * clamp(on, 0, 1) * ifelse(time < startup_delay, 0, 1)
   pump_flow = ramp.y
 
   v_max = V_tk * 0.40

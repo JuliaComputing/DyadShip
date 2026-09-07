@@ -25,10 +25,10 @@ The primary stack mirrors ShipSIM's architecture on `Frame3D` connectors:
 | `ShipWind` | Fujiwara superstructure wind loads at the centre of the lateral area. |
 | `WingSail` | Rigid wing sail on a servo-driven mast revolute, NACA tables, forces at the quarter chord of the rotated sail. |
 | `POD4Q` | Azimuthing pod: servo revolute, strut and an internal `Propeller4Q` that reads its own advance speed. |
-| `AntiHeeling` | Hysteresis pump controller, ramped flow, righting moment applied as a roll torque. |
-| `Crane` / `Cable` | Slewing and luffing revolutes on position servos, boom, tension-only cable with a latching break; loads react into the hull. |
+| `AntiHeeling` | Clocked hysteresis pump controller, ramped flow, righting moment applied as a roll torque. |
+| `Crane` / `Cable` | Slewing and luffing revolutes on position servos, boom, tension-only cable with a clocked break latch; loads react into the hull. |
 | `ApparentSpeedXY` | Frame-based apparent wind / current sensor. |
-| `WaypointAutopilot` | `LimPID` heading autopilot with throttle ramp. |
+| `WaypointAutopilot` / `WaypointSequencer` | `LimPID` heading autopilot with throttle ramp, and a clocked waypoint table that advances its index on arrival (`DiscreteComponents`). |
 | `StandardShip` | The ShipSIM sample hull (100 m, 5681 t) with propeller, rudder and hydrodynamics wired up; the manoeuvring analyses extend it. |
 
 ### Validation
@@ -51,6 +51,7 @@ figures in `assets/ship6dof_*.png`. Results for the sample hull (rudder rate
 | `FourWingSailsAHTransient` | same with the anti-heeling system enabled at 300 s: heel back to zero by 750 s, tank levels 65 % port / 25 % starboard |
 | `PodTurningCircleTransient` | 35° pod azimuth: steady radius 1.0 L at 2.1 m/s, no cavitation |
 | `CraneOperationTransient` | 50 t load luffed, slewed 90° to port and lowered: ship heels to 2.1°, cable tension 490 kN |
+| `WaypointTransitTransient` | three-leg route with a 45° dog-leg: the clocked sequencer switches waypoints at 851 s and 1635 s, arrival at 2400 s |
 
 ![Turning circle](assets/ship6dof_turning_circle.png)
 
@@ -58,6 +59,11 @@ The zig-zag overshoots are large because the upstream Khattab estimate of the
 yaw damping leaves the bare hull linearly course-unstable
 (`HydrodynamicXYY.CourseStability < 0`); the rudder's fin effect holds the
 course. Override `N_r` for a stiffer hull.
+
+The zig-zag switch, the anti-heeling on/off controller, the cable break and
+the waypoint table are clocked components built on `DiscreteComponents`
+(sampled every 0.05–1 s on a `PeriodicClock`, with the state held between
+samples), not continuous relay approximations.
 
 `ManualShip6DOFTransient` exposes shaft rpm and rudder angle as tunable
 parameters for interactive (WASM) use.

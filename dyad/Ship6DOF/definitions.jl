@@ -16,6 +16,20 @@ function draft_poly(table::AbstractMatrix, x)
     return acc
 end
 
+"""
+    select_by_index(v, i)
+
+Element `v[round(i)]` written as a sum of `ifelse` terms so it stays valid
+when the index `i` is a symbolic (clocked) quantity.
+"""
+function select_by_index(v::AbstractVector, i)
+    acc = ifelse(abs(i - 1) < 0.5, v[1], zero(v[1]))
+    for k in 2:length(v)
+        acc = acc + ifelse(abs(i - k) < 0.5, v[k], zero(v[k]))
+    end
+    return acc
+end
+
 # Wageningen B-screw series regression coefficients (Oosterveld & van Oossanen 1975).
 # Columns: coefficient, exponent of J, of P/D, of Ae/Ao, of Z. Valid for 2 <= Z <= 7,
 # 0.30 <= Ae/Ao <= 1.05, 0.5 <= P/D <= 1.4, Rn <= 2e6.

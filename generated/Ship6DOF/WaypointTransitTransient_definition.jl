@@ -8,11 +8,11 @@ using DyadInterface
 using DyadInterface: ODEAlg, DEVerbosity, OptimizationLevel
 using ModelingToolkit: SymbolicT, toggle_namespacing
 using DyadInterface: AbstractTransientAnalysisSpec, TransientAnalysisSpec
-@kwdef mutable struct ZigZagTransientSpec <: AbstractTransientAnalysisSpec
-  name::Symbol = :ZigZagTransient
+@kwdef mutable struct WaypointTransitTransientSpec <: AbstractTransientAnalysisSpec
+  name::Symbol = :WaypointTransitTransient
   var"alg"::ODEAlg.Type = ODEAlg.Auto()
   var"start"::Float64 = 0
-  var"stop"::Float64 = 600.0
+  var"stop"::Float64 = 3600.0
   var"abstol"::Float64 = 0.000001
   var"reltol"::Float64 = 0.000001
   var"saveat"::Float64 = 0
@@ -24,13 +24,15 @@ using DyadInterface: AbstractTransientAnalysisSpec, TransientAnalysisSpec
   var"respecialize"::Bool = false
   var"verbose"::DEVerbosity.Type = DEVerbosity.Standard()
   var"log_file"::String = ""
-  # IMO 20/20 zig-zag test at constant shaft speed. The overshoot angles are
-  # the amounts by which `ship.Yaw` exceeds ±20° after each rudder reversal;
-  # the reversals are the sign changes of the clocked relay state `controller.relay.s`.
-  var"model"::Union{Nothing, System} = DyadShip.Ship6DOF.ZigZag(; name=:ZigZag)
+  # Multi-waypoint transit: the `StandardShip` stack steered by `WaypointAutopilot`
+  # through the `WaypointSequencer`'s route (three legs by default, with a dog-leg
+  # to port), under a 10 m/s wind from the north-east. The sequencer advances its
+  # clocked index when the ship comes within `arrival_radius` of the active
+  # waypoint; the throttle ramps down only on the final leg.
+  var"model"::Union{Nothing, System} = DyadShip.Ship6DOF.WaypointTransit(; name=:WaypointTransit)
 end
 
-function DyadInterface.run_analysis(spec::ZigZagTransientSpec)
+function DyadInterface.run_analysis(spec::WaypointTransitTransientSpec)
   overrides = Dict{SymbolicT, SymbolicT}()
   no_namespace_model = toggle_namespacing(spec.model, false)
   
@@ -40,5 +42,5 @@ function DyadInterface.run_analysis(spec::ZigZagTransientSpec)
   run_analysis(base_spec)
 end
 
-ZigZagTransient(;kwargs...) = run_analysis(ZigZagTransientSpec(;kwargs...))
-export ZigZagTransient, ZigZagTransientSpec
+WaypointTransitTransient(;kwargs...) = run_analysis(WaypointTransitTransientSpec(;kwargs...))
+export WaypointTransitTransient, WaypointTransitTransientSpec

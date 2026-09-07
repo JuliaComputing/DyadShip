@@ -128,12 +128,28 @@ analysis RudderReturnTransient
 end
 
 """
-Zig-zag manoeuvre relay: commands `+rudder_deg` until the heading exceeds
+Clocked zig-zag relay state: `s = +1` commands `+rudder_deg` until the sampled
+heading exceeds `+psi_switch_deg`, then `s = -1` until it drops below
+`-psi_switch_deg`, and so on. The hysteresis is the previous sample `s@(clk-1)`.
+"""
+component ZigZagRelay@[input clk extends Discrete]
+  "Sampled heading [deg]"
+  psi_deg = RealInput@[clk]()
+  "Relay state, +1 or -1"
+  s = RealOutput@[clk]()
+  parameter psi_switch_deg::Real = 20
+relations
+  s@clk = ifelse(s@(clk-1) > 0, ifelse(psi_deg@clk >= psi_switch_deg, -1, 1), ifelse(psi_deg@clk <= -psi_switch_deg, 1, -1))
+  initial s@(clk-1) = 1
+end
+
+"""
+Zig-zag manoeuvre controller: commands `+rudder_deg` until the heading exceeds
 `+psi_switch_deg`, then `-rudder_deg` until the heading drops below
-`-psi_switch_deg`, and so on. The hysteresis is realised as a fast
-continuous relay state `s ∈ [-1, 1]` whose target depends on its own sign,
-since Dyad has no discrete events; `T_relay` sets the switching time scale
-(the rudder's own rate limit dominates the response).
+`-psi_switch_deg`, and so on. The heading is sampled every `dt` seconds on a
+`DiscreteComponents.PeriodicClock`, the switching logic is the clocked
+`ZigZagRelay` (a true discrete hysteresis, no relay approximation) and the
+rudder order is held between samples by a `ZeroOrderHold`.
 """
 component ZigZagController
   "Heading [rad], positive to port"
@@ -142,21 +158,25 @@ component ZigZagController
   rudder = RealOutput()
   parameter rudder_deg::Real = 20
   parameter psi_switch_deg::Real = 20
-  parameter T_relay::Time = 0.5
-  variable s::Real
+  "Sampling period of the switching logic"
+  structural parameter dt::Real = 0.1
+  sampler = DiscreteComponents.Sampler()
+  clock = DiscreteComponents.PeriodicClock(dt = dt)
+  relay = ZigZagRelay(psi_switch_deg = psi_switch_deg)
+  hold = DiscreteComponents.ZeroOrderHold(initial_condition = 1)
   variable psi_deg::Real
-  variable target::Real
 relations
-  initial s = 1
   psi_deg = psi * 180 / π
-  target = ifelse(s > 0, ifelse(psi_deg >= psi_switch_deg, -1, 1), ifelse(psi_deg <= -psi_switch_deg, 1, -1))
-  der(s) = (target - s) / T_relay
-  rudder = rudder_deg * clamp(s, -1, 1)
+  sampler.u = psi_deg
+  connect(sampler.y, relay.psi_deg, clock.y)
+  connect(relay.s, hold.u)
+  rudder = rudder_deg * hold.y
 end
 
 """
 IMO 20/20 zig-zag test at constant shaft speed. The overshoot angles are
-the amounts by which `ship.Yaw` exceeds ±20° after each rudder reversal.
+the amounts by which `ship.Yaw` exceeds ±20° after each rudder reversal;
+the reversals are the sign changes of the clocked relay state `controller.relay.s`.
 """
 test component ZigZag
   extends StandardShip(U0 = 6.69)

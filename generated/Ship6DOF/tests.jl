@@ -16,8 +16,10 @@ end
 
 
 @testset "`DyadShip.Ship6DOF`" begin
+include("AntiHeelingRelay_test.jl")
 include("AntiHeeling_test.jl")
 include("ApparentSpeedXY_test.jl")
+include("CableBreakLatch_test.jl")
 include("Cable_test.jl")
 include("CraneOperation_test.jl")
 include("Crane_test.jl")
@@ -40,8 +42,12 @@ include("ShipWind_test.jl")
 include("SpeedTrial_test.jl")
 include("TurningCircle_test.jl")
 include("WaypointAutopilot_test.jl")
+include("WaypointIndex_test.jl")
+include("WaypointSequencer_test.jl")
+include("WaypointTransit_test.jl")
 include("WingSailSweep_test.jl")
 include("WingSail_test.jl")
 include("ZigZagController_test.jl")
+include("ZigZagRelay_test.jl")
 include("ZigZag_test.jl")
 end

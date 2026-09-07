@@ -7,22 +7,22 @@
 import Moshi as __Ext__Moshi
 
 @doc Markdown.doc"""
-   ZigZagController(; name, rudder_deg, psi_switch_deg, T_relay)
+   ZigZagController(; name, dt, rudder_deg, psi_switch_deg)
 
-Zig-zag manoeuvre relay: commands `+rudder_deg` until the heading exceeds
+Zig-zag manoeuvre controller: commands `+rudder_deg` until the heading exceeds
 `+psi_switch_deg`, then `-rudder_deg` until the heading drops below
-`-psi_switch_deg`, and so on. The hysteresis is realised as a fast
-continuous relay state `s ∈ [-1, 1]` whose target depends on its own sign,
-since Dyad has no discrete events; `T_relay` sets the switching time scale
-(the rudder's own rate limit dominates the response).
+`-psi_switch_deg`, and so on. The heading is sampled every `dt` seconds on a
+`DiscreteComponents.PeriodicClock`, the switching logic is the clocked
+`ZigZagRelay` (a true discrete hysteresis, no relay approximation) and the
+rudder order is held between samples by a `ZeroOrderHold`.
 
 ## Parameters:
 
 | Name         | Description                         | Units  |   Default value |
 | ------------ | ----------------------------------- | ------ | --------------- |
+| `dt`         | Sampling period of the switching logic                         | --  |   0.1 |
 | `rudder_deg`         |                          | --  |   20 |
 | `psi_switch_deg`         |                          | --  |   20 |
-| `T_relay`         |                          | s  |   0.5 |
 
 ## Connectors
 
@@ -33,11 +33,9 @@ since Dyad has no discrete events; `T_relay` sets the switching time scale
 
 | Name         | Description                         | Units  | 
 | ------------ | ----------------------------------- | ------ |
-| `s`         |                          | --  |
 | `psi_deg`         |                          | --  |
-| `target`         |                          | --  |
 """
-@component function ZigZagController(; name = nothing, rudder_deg=Float64(20), psi_switch_deg=Float64(20), T_relay=0.5, kwargs...)
+@component function ZigZagController(; name = nothing, dt=0.1, rudder_deg=Float64(20), psi_switch_deg=Float64(20), kwargs...)
   isnothing(name) && throw(ArgumentError("""
     The `name` keyword must be provided. Please consider using the `@named` macro,
     like so:
@@ -74,9 +72,6 @@ since Dyad has no discrete events; `T_relay` sets the switching time scale
   __local__psi_switch_deg = psi_switch_deg
   append!(__params, @parameters (psi_switch_deg::Real))
   __initial_conditions[psi_switch_deg] = __local__psi_switch_deg
-  __local__T_relay = T_relay
-  append!(__params, @parameters (T_relay::Real))
-  __initial_conditions[T_relay] = __local__T_relay
 
   ### Final Parameters (assignments)
 
@@ -85,45 +80,47 @@ since Dyad has no discrete events; `T_relay` sets the switching time scale
   append!(__vars, @variables (rudder(t)::Real), [output = true])
 
   ### Variables (declarations)
-  append!(__vars, @variables (s(t)::Real))
   append!(__vars, @variables (psi_deg(t)::Real))
-  append!(__vars, @variables (target(t)::Real))
 
   ### Variables (assignments)
-  __ovr_s = pop!(__overrides, "s", nothing); isnothing(__ovr_s) || push!(__eqs, s ~ __ovr_s)
-  __ovr_s__initial = pop!(__overrides, "s__initial", nothing); isnothing(__ovr_s__initial) || (__initial_conditions[s] = __ovr_s__initial)
-  __ovr_s__guess = pop!(__overrides, "s__guess", nothing)
   __ovr_psi_deg = pop!(__overrides, "psi_deg", nothing); isnothing(__ovr_psi_deg) || push!(__eqs, psi_deg ~ __ovr_psi_deg)
   __ovr_psi_deg__initial = pop!(__overrides, "psi_deg__initial", nothing); isnothing(__ovr_psi_deg__initial) || (__initial_conditions[psi_deg] = __ovr_psi_deg__initial)
   __ovr_psi_deg__guess = pop!(__overrides, "psi_deg__guess", nothing)
-  __ovr_target = pop!(__overrides, "target", nothing); isnothing(__ovr_target) || push!(__eqs, target ~ __ovr_target)
-  __ovr_target__initial = pop!(__overrides, "target__initial", nothing); isnothing(__ovr_target__initial) || (__initial_conditions[target] = __ovr_target__initial)
-  __ovr_target__guess = pop!(__overrides, "target__guess", nothing)
 
   ### Constants
   __constants = Any[]
 
   ### Components
+  # Subcomponent sampler of type DiscreteComponents.Sampler
+  sampler_overrides = __pop_subcomponent_overrides!(__overrides, "sampler")
+  push!(__systems, @named sampler = DiscreteComponents.Sampler(; sampler_overrides...))
+  # Subcomponent clock of type DiscreteComponents.PeriodicClock
+  clock_overrides = __pop_subcomponent_overrides!(__overrides, "clock")
+  push!(__systems, @named clock = DiscreteComponents.PeriodicClock(; dt=dt, clock_overrides...))
+  # Subcomponent relay of type DyadShip.Ship6DOF.ZigZagRelay
+  relay_overrides = __pop_subcomponent_overrides!(__overrides, "relay")
+  push!(__systems, @named relay = DyadShip.Ship6DOF.ZigZagRelay(; psi_switch_deg=psi_switch_deg, relay_overrides...))
+  # Subcomponent hold of type DiscreteComponents.ZeroOrderHold
+  hold_overrides = __pop_subcomponent_overrides!(__overrides, "hold")
+  push!(__systems, @named hold = DiscreteComponents.ZeroOrderHold(; initial_condition=Float64(1), hold_overrides...))
 
   ### Check there are no unmatched overrides
   isempty(__overrides) || throw(ArgumentError("overrides: [$(join(keys(__overrides), ", "))] don't match names found in model. These names may exist in the model but could have been conditionally excluded."))
 
   ### Guesses
-  isnothing(__ovr_s__guess) || (__guesses[s] = __ovr_s__guess)
   isnothing(__ovr_psi_deg__guess) || (__guesses[psi_deg] = __ovr_psi_deg__guess)
-  isnothing(__ovr_target__guess) || (__guesses[target] = __ovr_target__guess)
 
   ### Initialization Equations
-  push!(__initialization_eqs, s ~ 1)
 
   ### Assertions
   __assertions = []
 
   ### Equations
   push!(__eqs, psi_deg ~ psi * 180 / π)
-  push!(__eqs, target ~ ifelse(s > 0, ifelse(psi_deg >= psi_switch_deg, -1, 1), ifelse(psi_deg <= -psi_switch_deg, 1, -1)))
-  push!(__eqs, ModelingToolkit.D_nounits(s) ~ (target - s) / T_relay)
-  push!(__eqs, rudder ~ rudder_deg * clamp(s, -1, 1))
+  push!(__eqs, sampler.u ~ psi_deg)
+  push!(__eqs, rudder ~ rudder_deg * hold.y)
+  push!(__eqs, connect(sampler.y, relay.psi_deg, clock.y))
+  push!(__eqs, connect(relay.s, hold.u))
 
   # Return completely constructed System
   return System(__eqs, t, __vars, __params; systems=__systems, initial_conditions=__initial_conditions, guesses=__guesses, name, initialization_eqs=__initialization_eqs, bindings=__bindings, assertions=__assertions)

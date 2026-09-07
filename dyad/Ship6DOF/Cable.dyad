@@ -8,11 +8,24 @@ length `SetLength` (an input, so a winch can pay it out), and carries no
 force when slack. It transmits no torque; set `fixed_rotation_at_frame_b =
 true` when a body without its own orientation states hangs from `frame_b`.
 
-The upstream break event (`when k (s - SetLength) > RotureStrength`) is
-realised as a latching relay state `intact` that decays to zero once the
-elastic tension exceeds `RotureStrength` and never recovers; the force is
-multiplied by it, so a broken cable goes slack within `T_break` seconds.
+The upstream break event (`when k (s - SetLength) > RotureStrength`) is a
+clocked latch: the elastic tension is sampled every `dt_check` seconds on a
+`DiscreteComponents.PeriodicClock`, and the `CableBreakLatch` state `intact`
+drops to zero the first time the sample exceeds `RotureStrength` and never
+recovers. The force is multiplied by the held state, so a parted cable goes
+slack within one sampling period.
 """
+component CableBreakLatch@[input clk extends Discrete]
+  "Sampled elastic tension [N]"
+  f = RealInput@[clk]()
+  "1 while intact, 0 after the cable has parted"
+  intact = RealOutput@[clk]()
+  parameter RotureStrength::Force = 1e12
+relations
+  intact@clk = ifelse(intact@(clk-1) > 0.5, ifelse(f@clk > RotureStrength, 0, 1), 0)
+  initial intact@(clk-1) = 1
+end
+
 component Cable
   extends MultibodyComponents.PartialLineForce
   "Unstretched length [m]"
@@ -25,16 +38,22 @@ component Cable
   parameter d::TranslationalDampingConstant = 0
   "Break tension; the cable parts when the elastic tension exceeds it"
   parameter RotureStrength::Force = 1e12
-  "Time scale of the break relay"
-  parameter T_break::Time = 0.2
+  "Sampling period of the break check"
+  structural parameter dt_check::Real = 0.5
+  sampler = DiscreteComponents.Sampler()
+  clock = DiscreteComponents.PeriodicClock(dt = dt_check)
+  latch = CableBreakLatch(RotureStrength = RotureStrength)
+  hold = DiscreteComponents.ZeroOrderHold(initial_condition = 1)
   "1 while the cable is intact, 0 after it has parted"
   variable intact::Real
   "Elastic tension before the break check"
   variable f_elastic::Force
 relations
-  initial intact = 1
   f_elastic = ifelse(s > SetLength, k * (s - SetLength), 0)
-  der(intact) = (ifelse(intact > 0.5, ifelse(f_elastic > RotureStrength, 0, 1), 0) - intact) / T_break
+  sampler.u = f_elastic
+  connect(sampler.y, latch.f, clock.y)
+  connect(latch.intact, hold.u)
+  intact = hold.y
   f = intact * ifelse(s > SetLength, k * (s - SetLength) + d * der(s), 0)
   Tension = f
 end
