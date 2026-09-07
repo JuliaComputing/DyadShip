@@ -127,8 +127,26 @@ Installing it precompiles a Lustre toolchain (`Heptagon_jll`,
 - `BuildingsHeatTransfer` (convection factors), `PrimitiveComponents` and
   `TranslatedComponents` are pinned to older `DyadEcosystemDependencies` and
   do not resolve on the 3.3.0 sysimage.
-- No moist-air or general fluid media library exists; `SourceMoistAir` stays
-  unported.
+- Two further registries exist on GitHub (`JuliaComputing/DyadHVACRegistry`,
+  `JuliaComputing/DyadThermoFluidRegistry`) and are not served by the JuliaHub
+  package server: clone them into `~/.julia/registries/` and set
+  `JULIA_PKG_USE_CLI_GIT=true` so Pkg fetches the private package repos with
+  the system git. Both libraries below target kernel 3.3.0 and install on the
+  3.3.0 sysimage (verified 2026-09-07):
+  - `HVACComponents` 0.3.0: moist-air, dry-air and refrigerant media
+    (`BaseProperties_MoistAir` with p, T, Xi states and relative humidity),
+    `MoistAirFluidPort`, `Boundary_pTPhi` / `MassFlowSource_TPhi` sources,
+    mixing volumes, lumped rooms with 1D walls, heat exchangers, compressors.
+    This is what `SourceMoistAir`, `DewTemperature` on a real air stream and
+    `EnvironmentHeatTransfer`'s air side need.
+  - `IncompressibleFlowComponents` 0.1.0: liquid media (constant or
+    polynomial in T), `FluidPort` with `path medium`, pumps and fans with
+    characteristics, valves, open tanks, volumes, ε-NTU and UA heat
+    exchangers, pT and mass-flow boundaries. This allows the anti-heeling
+    tanks and pump to become an actual ballast circuit and cooling-water
+    systems to be modelled.
+  - `MediaComponents` / `FluidComponents` (general media and distributed
+    pipes) exist but are earlier-stage (`kernel = 3.3.0-rc4`, water only).
 
 ## Known limitations
 
