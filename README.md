@@ -178,7 +178,7 @@ heading_deg = rad2deg.(res.sol[m.ship.Yaw])
 
 ## License
 
-The Dyad rewrite in this repository is © 2025 Panagiotis Georgakopoulos. The
+The Dyad rewrite in this repository is © 2025 JuliaHub and contributors, Panagiotis Georgakopoulos. The
 upstream Modelica `ShipSIM` library is © Basilio Puente and M Dolores
 Fernandez, distributed under the 3-clause BSD license.
 
