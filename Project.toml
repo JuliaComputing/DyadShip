@@ -1,7 +1,7 @@
 name = "DyadShip"
 uuid = "06f36289-3465-4855-a938-d9d375dd888a"
 version = "0.1.0"
-authors = [" <>"]
+authors = ["JuliaHub and contributors <sales@juliahub.com>", "Panagiotis Georgakopoulos <panagiotis.georgakopoulos@juliahub.com"]
 
 [deps]
 BlockComponents = "1ef5d832-be8e-447f-9f2c-8b5d17d15fd3"
