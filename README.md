@@ -135,6 +135,15 @@ commands through `~/dyad-fleet/heavy` on this machine.
 ../julia-dyad.sh --project=scripts scripts/run_waterlily_flettner.jl
 ```
 
+Two dependencies are not open source. `HVACComponents` (moist air, used by
+`dyad/MoistAir`) and `IncompressibleFlowComponents` (tanks, pumps and valves,
+used by `Ship6DOF.AntiHeelingCircuit`) are © JuliaHub, all rights reserved,
+and are provided under the JuliaHub end user license agreement
+(https://juliahub.com/company/eula) from the private `DyadHVACRegistry` and
+`DyadThermoFluidRegistry` registries; see `PORTING_NOTES.md` for how they are
+installed. They are not redistributed here, and using the models that
+depend on them requires access to those registries under that agreement.
+
 Accessing results follows the Dyad convention:
 
 ```julia
@@ -172,3 +181,10 @@ heading_deg = rad2deg.(res.sol[m.ship.Yaw])
 The Dyad rewrite in this repository is © 2025 Panagiotis Georgakopoulos. The
 upstream Modelica `ShipSIM` library is © Basilio Puente and M Dolores
 Fernandez, distributed under the 3-clause BSD license.
+
+The `HVACComponents` and `IncompressibleFlowComponents` libraries this
+repository depends on are © JuliaHub, all rights reserved, and are subject to
+the JuliaHub end user license agreement rather than the licenses above; the
+`MoistAir` module and the `AntiHeelingCircuit` models are unusable without
+them. The Dyad toolchain itself is provided by JuliaHub for educational and
+personal use, with commercial use requiring a license.
