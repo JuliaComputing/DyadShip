@@ -12,7 +12,6 @@ end
 include("ConvRadSunWall_experiment.jl")
 include("CylinderHeatup_experiment.jl")
 include("CylinderTransient_experiment.jl")
-include("DewTemperature_experiment.jl")
 include("IrradiationOnPlane_experiment.jl")
 include("PlateHeatup_experiment.jl")
 include("PlateTransient_experiment.jl")

@@ -1,0 +1,107 @@
+"""
+Moist-air source with prescribed volume flow, temperature and relative humidity.
+
+Port of `ShipSIM.Components.Others.MoistAir.SourceMoistAir` onto the
+`HVACComponents` moist-air medium. The three upstream inputs are kept:
+`Air_Flow` [m³/s], `RH` [0–1] and `Temp` [K]. The water-vapour mass fraction
+follows from the pressure at the port, the temperature and the relative
+humidity through the medium's `massFraction_pTϕ`, the volume flow is
+converted to mass flow with the medium density at the outflow state, and the
+outflow enthalpy and mass fraction are written to the `MoistAirFluidPort`
+stream variables. Positive `Air_Flow` pushes air into the connected network.
+"""
+component SourceMoistAir
+  port = HVACComponents.MoistAirFluidPort()
+  "Volume flow [m³/s], positive into the network"
+  Air_Flow = RealInput()
+  "Relative humidity [0-1]"
+  RH = RealInput()
+  "Air temperature [K]"
+  Temp = RealInput()
+  "Moist-air medium properties"
+  parameter medium_data::HVACComponents.MediaModels.AbstractMoistAirMedium = HVACComponents.moistair
+  "Water-vapour mass fraction of the outflow"
+  variable Xi::Real
+  "Specific enthalpy of the outflow [J/kg]"
+  variable h::Real
+  "Density of the outflow [kg/m³]"
+  variable d::Real
+  "Mass flow into the network [kg/s]"
+  variable m_flow::Real
+relations
+  Xi = HVACComponents.massFraction_pTϕ(port.p, Temp, RH, medium_data)
+  h = HVACComponents.h_pTX(port.p, Temp, Xi, medium_data)
+  d = HVACComponents.d_pTX(port.p, Temp, Xi, medium_data)
+  m_flow = Air_Flow * d
+  port.m_flow = -m_flow
+  port.h_outflow = h
+  port.Xi_outflow = Xi
+end
+
+"""
+Dew-point sensor on a moist-air port.
+
+Port of `ShipSIM.Components.Others.MoistAir.DewTemperature` onto the
+`HVACComponents` moist-air medium. The sensor is ideal (no mass flow): it
+reconstructs the temperature of the air stream at the port from the pressure
+and the in-stream enthalpy and mass fraction, evaluates the relative humidity
+and the saturation pressure from the medium, and returns the dew point from
+the Magnus formula on the vapour pressure `P_vap = RH · P_sat`.
+"""
+component DewTemperature
+  port = HVACComponents.MoistAirFluidPort()
+  "Dew-point temperature [K]"
+  Tdew = RealOutput()
+  "Temperature of the stream at the port [K]"
+  T = RealOutput()
+  "Relative humidity of the stream at the port"
+  RH = RealOutput()
+  parameter medium_data::HVACComponents.MediaModels.AbstractMoistAirMedium = HVACComponents.moistair
+  "Saturation vapour pressure [Pa]"
+  variable P_sat::Real
+  "Vapour pressure [Pa]"
+  variable P_vap::Real
+  variable Xi_in::Real
+  variable h_in::Real
+relations
+  port.m_flow = 0
+  port.h_outflow = 0
+  port.Xi_outflow = 0
+  h_in = instream(port.h_outflow)
+  Xi_in = instream(port.Xi_outflow)
+  T = HVACComponents.T_phX(port.p, h_in, Xi_in, medium_data)
+  RH = HVACComponents.relativeHumidity_pTX(port.p, T, Xi_in, medium_data)
+  P_sat = HVACComponents.saturationPressure(T)
+  P_vap = P_sat * RH
+  Tdew = 273.15 + (241.88 * log(P_vap / 610.78)) / (17.558 - log(P_vap / 610.78))
+end
+
+"""
+Warm humid air (30 °C, 80 % relative humidity, 0.5 m³/s) is blown through a
+30 m³ ventilated space that starts dry and cool; the dew-point sensor on the
+outlet must settle at the Magnus dew point of the supply, about 26.2 °C.
+"""
+test component MoistAirDewPoint
+  parameter T_supply::Temperature = 303.15
+  parameter RH_supply::Real = 0.8
+  parameter Q_supply::Real = 0.5
+  source = SourceMoistAir()
+  volume = HVACComponents.Components.MultiportVolume(N_ports = 2, N_heat = 1, V_tot = 30, medium_data = HVACComponents.moistair, p_start = 101325, T_start = 293.15, Xi_start = 0.005)
+  sink = HVACComponents.Components.Sources.Boundary_pTPhi(medium_data = HVACComponents.moistair, p_in = 101325, T_in = 293.15, Phi_in = 0.5)
+  no_heat = ThermalComponents.Sources.FixedHeatFlow(Q_flow = 0)
+  no_latent = ThermalComponents.Sources.FixedHeatFlow(Q_flow = 0)
+  dew = DewTemperature()
+relations
+  source.Air_Flow = Q_supply
+  source.RH = RH_supply
+  source.Temp = T_supply
+  connect(source.port, volume.ports[1])
+  connect(volume.ports[2], sink.port1, dew.port)
+  connect(volume.heatPorts[1], no_heat.port)
+  connect(volume.QLatPort, no_latent.port)
+end
+
+analysis MoistAirDewPointTransient
+  extends TransientAnalysis(stop = 900.0)
+  model = MoistAirDewPoint()
+end

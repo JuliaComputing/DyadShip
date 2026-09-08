@@ -25,7 +25,7 @@ The primary stack mirrors ShipSIM's architecture on `Frame3D` connectors:
 | `ShipWind` | Fujiwara superstructure wind loads at the centre of the lateral area. |
 | `WingSail` | Rigid wing sail on a servo-driven mast revolute, NACA tables, forces at the quarter chord of the rotated sail. |
 | `POD4Q` | Azimuthing pod: servo revolute, strut and an internal `Propeller4Q` that reads its own advance speed. |
-| `AntiHeeling` | Clocked hysteresis pump controller, ramped flow, righting moment applied as a roll torque. |
+| `AntiHeeling` / `BallastTank` / `VariableMass` | Clocked hysteresis pump controller with ramped flow; the tank liquids as variable-mass points on the hull, so the righting moment, the added weight and the change of the ship's centre of gravity and roll inertia come from where the water is. |
 | `Crane` / `Cable` | Slewing and luffing revolutes on position servos, boom, tension-only cable with a clocked break latch; loads react into the hull. |
 | `ApparentSpeedXY` | Frame-based apparent wind / current sensor. |
 | `WaypointAutopilot` / `WaypointSequencer` | `LimPID` heading autopilot with throttle ramp, and a clocked waypoint table that advances its index on arrival (`DiscreteComponents`). |
@@ -49,6 +49,8 @@ figures in `assets/ship6dof_*.png`. Results for the sample hull (rudder rate
 | `WingSailSweepTransient` | one sail in a 10 m/s beam wind: peak forward thrust 12 kN at a 15° attack angle |
 | `FourWingSailsTransient` | four sails, 15 m/s from the port beam, autopilot holding course: 7.17 m/s at 100 rpm against 6.05 m/s without sails, 29 kN sail thrust, 1.2° heel |
 | `FourWingSailsAHTransient` | same with the anti-heeling system enabled at 300 s: heel back to zero by 750 s, tank levels 65 % port / 25 % starboard |
+| `FourWingSailsAHTanksTransient` | same with the tanks as moving masses instead of an applied torque: heel back to zero by 700 s with 67 t / 25 t in the tanks, ship 7 cm deeper from the ballast |
+| `MoistAir.MoistAirDewPointTransient` | 30 °C, 80 % air through a ventilated space on `HVACComponents` moist-air media: outlet dew point 26.20 °C (Magnus reference 26.17 °C) |
 | `PodTurningCircleTransient` | 35° pod azimuth: steady radius 1.0 L at 2.1 m/s, no cavitation |
 | `CraneOperationTransient` | 50 t load luffed, slewed 90° to port and lowered: ship heels to 2.1°, cable tension 490 kN |
 | `WaypointTransitTransient` | three-leg route with a 45° dog-leg: the clocked sequencer switches waypoints at 851 s and 1635 s, arrival at 2400 s |
@@ -145,7 +147,9 @@ heading_deg = rad2deg.(res.sol[m.ship.Yaw])
 - `dyad/Machinery/` — on-off consumer, continuous peak sampler and the
   event-driven `EventPeakSampler` built on `DiscreteComponents` clocks.
 - `dyad/Thermal/` — solar irradiation, sun screen, plate and cylinder
-  transients, temperature dataset, dew point, air exchanger.
+  transients, temperature dataset, air exchanger.
+- `dyad/MoistAir/` — `SourceMoistAir` and `DewTemperature` on the
+  `HVACComponents` moist-air medium (`MoistAirFluidPort`).
 - `dyad/Environment.dyad`, `VariableEnvironment.dyad`, `ApparentSpeedXY.dyad` —
   signal-level environment helpers.
 - `assets/` — wing-profile and Flettner coefficient tables, temperature CSV,

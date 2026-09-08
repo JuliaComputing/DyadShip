@@ -7,7 +7,7 @@
 import Moshi as __Ext__Moshi
 
 @doc Markdown.doc"""
-   AntiHeeling(; name, dt, B, b, V_tk, rho, Q, max_angle, off_angle, ramp_time, startup_delay, g)
+   AntiHeeling(; name, dt, B, b, V_tk, rho, Q, max_angle, off_angle, ramp_time, startup_delay, g, apply_moment)
 
 Anti-heeling system applying its righting moment to a 3D hull frame.
 
@@ -25,7 +25,9 @@ density and the tank separation `B - b`, saturating at the moment the
 overflow volume `0.4 V_tk` can produce, and is applied as a roll moment
 `-M_adr g` on `frame_a` by a `WorldTorque` in the ship frame, so a
 `ShipBody` rights itself against a steady heeling load. `heel_out` and
-`pump_flow` feed `DyadShip.Ship.Tank` models for the tank levels.
+`pump_flow` feed `DyadShip.Ship.Tank` models for the tank levels, or
+`BallastTank` masses on the hull; in the latter case set `apply_moment =
+false` so the moment comes from the water's weight only.
 
 ## Parameters:
 
@@ -42,6 +44,7 @@ overflow volume `0.4 V_tk` can produce, and is applied as a roll moment
 | `ramp_time`         | Ramp-up time of the pump flow [s]                         | s  |   10 |
 | `startup_delay`         | Pump is held off before this time [s]                         | s  |   500 |
 | `g`         |                          | m/s2  |   9.80665 |
+| `apply_moment`         | Apply the righting moment as a torque on frame_a. Set false when the tank liquids are modelled as `BallastTank` masses on the hull, which then produce the moment themselves.                         | --  |   true |
 
 ## Connectors
 
@@ -63,7 +66,7 @@ connectors that can be connected together ([`Frame3D`](@ref))
 | `M_max`         | Maximum moment the tanks can produce [t m]                         | --  |
 | `sgn`         | Smooth sign of the heel                         | --  |
 """
-@component function AntiHeeling(; name = nothing, dt=Float64(1.0), B=24.3, b=6.35, V_tk=211.47, rho=1.025, Q=Float64(200), max_angle=0.1, off_angle=0.001, ramp_time=Float64(10), startup_delay=Float64(500), g=9.80665, kwargs...)
+@component function AntiHeeling(; name = nothing, dt=Float64(1.0), B=24.3, b=6.35, V_tk=211.47, rho=1.025, Q=Float64(200), max_angle=0.1, off_angle=0.001, ramp_time=Float64(10), startup_delay=Float64(500), g=9.80665, apply_moment=true, kwargs...)
   isnothing(name) && throw(ArgumentError("""
     The `name` keyword must be provided. Please consider using the `@named` macro,
     like so:
@@ -124,6 +127,9 @@ connectors that can be connected together ([`Frame3D`](@ref))
   __local__g = g
   append!(__params, @parameters (g::Real))
   __initial_conditions[g] = __local__g
+  __local__apply_moment = apply_moment
+  append!(__params, @parameters (apply_moment::Bool), [description = "Apply the righting moment as a torque on frame_a. Set false when the tank liquids are modelled as `BallastTank` masses on the hull, which then produce the moment themselves."])
+  __initial_conditions[apply_moment] = __local__apply_moment
 
   ### Final Parameters (assignments)
 
@@ -210,7 +216,7 @@ connectors that can be connected together ([`Frame3D`](@ref))
   push!(__eqs, sgn ~ ship_heel / sqrt(ship_heel ^ 2 + 0.000001))
   push!(__eqs, ModelingToolkit.D_nounits(M_tks) ~ sgn * pump_flow / 3600 * rho * (B - b))
   push!(__eqs, M_adr ~ clamp(M_tks, -M_max, M_max))
-  push!(__eqs, torque.torque_x ~ -M_adr * g * 1000)
+  push!(__eqs, torque.torque_x ~ ifelse(apply_moment, -M_adr * g * 1000, 0))
   push!(__eqs, torque.torque_y ~ 0)
   push!(__eqs, torque.torque_z ~ 0)
   push!(__eqs, connect(frame_a, torque.frame_b))

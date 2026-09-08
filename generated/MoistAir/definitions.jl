@@ -12,8 +12,8 @@ using OrdinaryDiffEqDefault
 using RuntimeGeneratedFunctions
 RuntimeGeneratedFunctions.init(@__MODULE__)
 
-if isfile(joinpath((@__DIR__) |> Base.dirname |> Base.dirname, "dyad", "Thermal", "definitions.jl"))
-  include(joinpath((@__DIR__) |> Base.dirname |> Base.dirname, "dyad", "Thermal", "definitions.jl"))
+if isfile(joinpath((@__DIR__) |> Base.dirname |> Base.dirname, "dyad", "MoistAir", "definitions.jl"))
+  include(joinpath((@__DIR__) |> Base.dirname |> Base.dirname, "dyad", "MoistAir", "definitions.jl"))
 end
 
 import BlockComponents
@@ -204,17 +204,7 @@ component.
 end
 
 
-include("ConvRadSunWall_definition.jl")
-include("CylinderHeatup_definition.jl")
-include("CylinderTransientAnalysis_definition.jl")
-include("CylinderTransient_definition.jl")
-include("IrradiationOnPlane_definition.jl")
-include("PlateHeatup_definition.jl")
-include("PlateTransientAnalysis_definition.jl")
-include("PlateTransient_definition.jl")
-include("SimpleAirExchanger_definition.jl")
-include("SolarIrradiation_definition.jl")
-include("SolarSweepTransient_definition.jl")
-include("SolarSweep_definition.jl")
-include("SunScreen_definition.jl")
-include("TemperatureDataset_definition.jl")
+include("DewTemperature_definition.jl")
+include("MoistAirDewPointTransient_definition.jl")
+include("MoistAirDewPoint_definition.jl")
+include("SourceMoistAir_definition.jl")

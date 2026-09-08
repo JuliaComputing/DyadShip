@@ -53,17 +53,17 @@ starboard down, positive trim is bow down. Wind and current directions are
 | `AlternativePropulsion.WingSail` | `Ship6DOF.WingSail` | servo revolute, NACA tables, forces at the rotated quarter chord |
 | (new) | planar `Propulsion.FlettnerRotor`, `FlettnerRotorOnline` | WaterLily-derived Magnus coefficients |
 | `AutoPilot.SimpleAutoPilot` | `Ship.HeadingAutoPilot` (PI + throttle ramp), `Ship6DOF.WaypointAutopilot` (`LimPID`) + `WaypointSequencer` (clocked waypoint table) | |
-| `AntiHeelingSystem.AntiHeeling`, `Tank` | `Ship6DOF.AntiHeeling`, `Ship.Tank` | clocked on/off hysteresis (`AntiHeelingRelay`) and slew-rate ramp |
+| `AntiHeelingSystem.AntiHeeling`, `Tank` | `Ship6DOF.AntiHeeling`, `Ship.Tank`, `Ship6DOF.BallastTank` (+ `VariableMass`) | clocked on/off hysteresis and slew-rate ramp; tanks optionally as moving masses on the hull |
 | `Machines.SimpleDieselEngine` | `Propulsion.SimpleDieselEngine` | tables inlined as `ifelse` |
 | `Machines.Crane`, `SubComponents.Cable` | `Ship6DOF.Crane`, `Ship6DOF.Cable` | 3D; cable break as a clocked latch (`CableBreakLatch`) |
 | `Electrical.OnOffConsumer` | `Machinery.OnOffConsumer` | driven by a work signal instead of a random schedule |
 | `DataProcessing.PeakSampler` | `Machinery.EventPeakSampler`, `Machinery.PeakSampler` | event-driven (`DiscreteComponents.ZeroCrossingClock`) and continuous peak-hold |
-| `Others.Solar.*`, `Others.HeatTransfer.*`, `MoistAir.DewTemperature` | `Thermal.*` | see docstrings |
+| `Others.Solar.*`, `Others.HeatTransfer.*` | `Thermal.*` | see docstrings |
+| `Others.MoistAir.SourceMoistAir`, `DewTemperature` | `MoistAir.SourceMoistAir`, `MoistAir.DewTemperature` | on `HVACComponents` moist-air media and `MoistAirFluidPort` |
 
 Not ported: `RainflowCounter` / `FatigueCounter` (needs `algorithm` + `pre`;
 belongs in a Julia post-processor), `TriggerConsumer` / `StartGenerator`
-(event-driven schedules), `SourceMoistAir` (no moist-air medium),
-`SunIrradianceMultibody`, `EnvironmentHeatTransfer`, `ConvectionFactors.*`,
+(event-driven schedules), `SunIrradianceMultibody`, `EnvironmentHeatTransfer`, `ConvectionFactors.*`,
 `SubComponents.Ikeda` (partial roll-damping stub upstream), `VariableTranslation`
 (the 3D components apply forces at variable points algebraically instead).
 
@@ -144,14 +144,14 @@ Installing it precompiles a Lustre toolchain (`Heptagon_jll`,
     (`BaseProperties_MoistAir` with p, T, Xi states and relative humidity),
     `MoistAirFluidPort`, `Boundary_pTPhi` / `MassFlowSource_TPhi` sources,
     mixing volumes, lumped rooms with 1D walls, heat exchangers, compressors.
-    This is what `SourceMoistAir`, `DewTemperature` on a real air stream and
-    `EnvironmentHeatTransfer`'s air side need.
+    `MoistAir.SourceMoistAir` / `DewTemperature` are built on it (project
+    dependency); `EnvironmentHeatTransfer`'s air side can follow.
   - `IncompressibleFlowComponents` 0.1.0: liquid media (constant or
     polynomial in T), `FluidPort` with `path medium`, pumps and fans with
     characteristics, valves, open tanks, volumes, ε-NTU and UA heat
-    exchangers, pT and mass-flow boundaries. This allows the anti-heeling
-    tanks and pump to become an actual ballast circuit and cooling-water
-    systems to be modelled.
+    exchangers, pT and mass-flow boundaries. The anti-heeling pump and
+    piping could be modelled with it; the tank liquids themselves are
+    already `BallastTank` masses on the hull.
   - `MediaComponents` / `FluidComponents` (general media and distributed
     pipes) exist but are earlier-stage (`kernel = 3.3.0-rc4`, water only).
 

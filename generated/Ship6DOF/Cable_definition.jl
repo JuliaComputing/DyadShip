@@ -15,7 +15,7 @@ import Moshi as __Ext__Moshi
 | ------------ | ----------------------------------- | ------ | --------------- |
 | `fixed_rotation_at_frame_a`         |                          | --  |   false |
 | `fixed_rotation_at_frame_b`         |                          | --  |   false |
-| `dt_check`         | Sampling period of the break check                         | --  |   0.05 |
+| `dt_check`         | Sampling period of the break check                         | --  |   0.5 |
 | `s_small`         |                          | --  |   1e-10 |
 | `k`         | Cable stiffness                         | N/m  |   1e5 |
 | `d`         | Cable damping                         | N.s/m  |   0 |
@@ -44,7 +44,7 @@ connectors that can be connected together ([`Frame3D`](@ref))
 | `intact`         | 1 while the cable is intact, 0 after it has parted                         | --  |
 | `f_elastic`         | Elastic tension before the break check                         | N  |
 """
-@component function Cable(; name = nothing, fixed_rotation_at_frame_a=false, fixed_rotation_at_frame_b=false, dt_check=0.05, s_small=1e-10, k=Float64(100000.0), d=Float64(0), RotureStrength=Float64(1000000000000.0), kwargs...)
+@component function Cable(; name = nothing, fixed_rotation_at_frame_a=false, fixed_rotation_at_frame_b=false, dt_check=0.5, s_small=1e-10, k=Float64(100000.0), d=Float64(0), RotureStrength=Float64(1000000000000.0), kwargs...)
   isnothing(name) && throw(ArgumentError("""
     The `name` keyword must be provided. Please consider using the `@named` macro,
     like so:

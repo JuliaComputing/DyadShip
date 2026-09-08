@@ -31,7 +31,9 @@ density and the tank separation `B - b`, saturating at the moment the
 overflow volume `0.4 V_tk` can produce, and is applied as a roll moment
 `-M_adr g` on `frame_a` by a `WorldTorque` in the ship frame, so a
 `ShipBody` rights itself against a steady heeling load. `heel_out` and
-`pump_flow` feed `DyadShip.Ship.Tank` models for the tank levels.
+`pump_flow` feed `DyadShip.Ship.Tank` models for the tank levels, or
+`BallastTank` masses on the hull; in the latter case set `apply_moment =
+false` so the moment comes from the water's weight only.
 """
 component AntiHeeling
   frame_a = Frame3D()
@@ -74,6 +76,8 @@ component AntiHeeling
   "Sampling period of the on/off controller"
   structural parameter dt::Real = 1.0
   parameter g::Acceleration = 9.80665
+  "Apply the righting moment as a torque on frame_a. Set false when the tank liquids are modelled as `BallastTank` masses on the hull, which then produce the moment themselves."
+  parameter apply_moment::Boolean = true
 
   "Pump command from the relay, 1 = on"
   variable on::Real
@@ -103,7 +107,7 @@ relations
   der(M_tks) = sgn * pump_flow / 3600 * rho * (B - b)
   M_adr = clamp(M_tks, -M_max, M_max)
 
-  torque.torque_x = -M_adr * g * 1000
+  torque.torque_x = ifelse(apply_moment, -M_adr * g * 1000, 0)
   torque.torque_y = 0
   torque.torque_z = 0
 end

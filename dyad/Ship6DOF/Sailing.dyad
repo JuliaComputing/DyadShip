@@ -112,3 +112,30 @@ analysis FourWingSailsAHTransient
   extends TransientAnalysis(stop = 900.0)
   model = FourWingSailsAH()
 end
+
+"""
+`FourWingSails` with the anti-heeling tanks modelled as `BallastTank`
+variable masses on the hull, 8 m either side of the centreline at 50 m from
+the aft perpendicular, 1 m above the keel. The `AntiHeeling` controller only
+runs the pump (`apply_moment = false`); the righting moment, the added
+weight of the water and the shift in the ship's centre of gravity and roll
+inertia all come from the two moving masses.
+"""
+test component FourWingSailsAHTanks
+  extends FourWingSails()
+  antiheeling = AntiHeeling(B = 20, b = 4, V_tk = 100, startup_delay = 300, apply_moment = false)
+  tank_port = BallastTank(r_tank = [50, 8, 1], V = 100, H = 5)
+  tank_starboard = BallastTank(r_tank = [50, -8, 1], V = 100, H = 5)
+relations
+  connect(ship.frame_a, antiheeling.frame_a, tank_port.frame_a, tank_starboard.frame_a)
+  antiheeling.ship_heel = ship.Heel * 180 / π
+  tank_port.M_input = antiheeling.heel_out
+  tank_port.Q_input = antiheeling.pump_flow
+  tank_starboard.M_input = antiheeling.heel_out
+  tank_starboard.Q_input = antiheeling.pump_flow
+end
+
+analysis FourWingSailsAHTanksTransient
+  extends TransientAnalysis(stop = 900.0)
+  model = FourWingSailsAHTanks()
+end

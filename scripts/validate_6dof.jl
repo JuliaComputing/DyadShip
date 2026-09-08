@@ -102,6 +102,19 @@ p = plot(ts, rad2deg.(sample(sol, m.ship.Heel, ts)), xlabel = "t [s]", ylabel = 
 plot!(p, ts, sample(sol, m.antiheeling.pump_flow, ts) ./ 100, label = "pump flow / 100", lw = 2)
 savefig(p, joinpath(ASSETS, "ship6dof_sails_antiheeling.png"))
 
+res = S6.FourWingSailsAHTanksTransient(); sol = res.sol; m = symbolic_container(res)
+@printf("  with BallastTank masses instead of an applied torque: heel %.2f deg at 290 s, %.2f deg at 900 s; tank masses %.0f t / %.0f t, draft +%.3f m\n", rad2deg(sol(290; idxs = m.ship.Heel)), rad2deg(sol(900; idxs = m.ship.Heel)), sol(900; idxs = m.tank_port.mass) / 1e3, sol(900; idxs = m.tank_starboard.mass) / 1e3, sol(900; idxs = m.ship.Draft) - 4)
+ts = collect(0:1:900)
+p = plot(ts, rad2deg.(sample(sol, m.ship.Heel, ts)), xlabel = "t [s]", ylabel = "[deg], [t / 100]", label = "heel", title = "Anti-heeling with moving ballast masses", lw = 2)
+plot!(p, ts, sample(sol, m.tank_port.mass, ts) ./ 1e5, label = "port tank mass / 100 t", lw = 2)
+plot!(p, ts, sample(sol, m.tank_starboard.mass, ts) ./ 1e5, label = "starboard tank mass / 100 t", lw = 2)
+savefig(p, joinpath(ASSETS, "ship6dof_ballast_tanks.png"))
+
+println("== Moist air: dew-point sensor on a ventilated space (HVACComponents)")
+res = DyadShip.MoistAir.MoistAirDewPointTransient(); sol = res.sol; m = symbolic_container(res)
+Ps = 610.78 * exp(17.558 * 30 / (241.88 + 30)); Pv = 0.8 * Ps; Tref = 241.88 * log(Pv / 610.78) / (17.558 - log(Pv / 610.78))
+@printf("  retcode %s, outlet dew point %.2f C at 900 s (Magnus reference for 30 C / 80 %%: %.2f C), outlet RH %.3f\n", sol.retcode, sol(900; idxs = m.dew.Tdew) - 273.15, Tref, sol(900; idxs = m.dew.RH))
+
 println("== Pod turning circle (35 deg azimuth)")
 res = S6.PodTurningCircleTransient(); sol = res.sol; m = symbolic_container(res)
 U = hypot(sol(600; idxs = m.ship.Surge), sol(600; idxs = m.ship.Sway)); r = sol(600; idxs = m.ship.YawRate)

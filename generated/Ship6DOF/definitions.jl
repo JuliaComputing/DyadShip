@@ -21,6 +21,7 @@ import DiscreteComponents
 import DyadData
 import DyadInterface
 import ElectricalComponents
+import HVACComponents
 import MultibodyComponents
 import RotationalComponents
 import ThermalComponents
@@ -206,6 +207,7 @@ end
 include("AntiHeelingRelay_definition.jl")
 include("AntiHeeling_definition.jl")
 include("ApparentSpeedXY_definition.jl")
+include("BallastTank_definition.jl")
 include("CableBreakLatch_definition.jl")
 include("Cable_definition.jl")
 include("CraneOperationTransient_definition.jl")
@@ -213,6 +215,8 @@ include("CraneOperation_definition.jl")
 include("Crane_definition.jl")
 include("CrashStopTransient_definition.jl")
 include("CrashStop_definition.jl")
+include("FourWingSailsAHTanksTransient_definition.jl")
+include("FourWingSailsAHTanks_definition.jl")
 include("FourWingSailsAHTransient_definition.jl")
 include("FourWingSailsAH_definition.jl")
 include("FourWingSailsTransient_definition.jl")
@@ -239,6 +243,7 @@ include("SpeedTrialTransient_definition.jl")
 include("SpeedTrial_definition.jl")
 include("TurningCircleTransient_definition.jl")
 include("TurningCircle_definition.jl")
+include("VariableMass_definition.jl")
 include("WaypointAutopilot_definition.jl")
 include("WaypointIndex_definition.jl")
 include("WaypointSequencer_definition.jl")

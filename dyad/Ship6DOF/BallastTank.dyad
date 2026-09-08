@@ -1,0 +1,92 @@
+"""
+Point mass with time-varying mass and centre height on a 3D frame.
+
+The same Newton equations as `MultibodyComponents.Body` without an inertia
+tensor, but with the mass `m` and the height `z_cm` of the mass centre above
+`frame_a` (along the frame's local z axis) as inputs, so liquid loads that are
+pumped around a ship (ballast, anti-heeling tanks, fuel) contribute their
+weight, their inertial reaction to the ship's accelerations and the lever arm
+of their centre of gravity to the hull dynamics as they change. With the
+frame attached to a `ShipBody`, the hull's total mass, centre of gravity and
+moments of inertia follow the liquid distribution automatically.
+"""
+component VariableMass
+  frame_a = Frame3D()
+  "Mass [kg]"
+  m = RealInput()
+  "Height of the mass centre above frame_a along the local z axis [m]"
+  z_cm = RealInput()
+  "Use a point-gravity field pointing towards the world origin"
+  structural parameter point_gravity::Boolean = false
+  "Mass centre in the frame"
+  variable r_cm::Length[3]
+  "Velocity and acceleration of frame_a in the world frame"
+  variable v_0::Velocity[3]
+  variable a_0::Acceleration[3]
+  "Angular velocity and acceleration of frame_a, resolved in frame_a"
+  variable w::AngularVelocity[3]
+  variable z::AngularAcceleration[3]
+  "Gravity at the mass centre, world frame"
+  variable g_0::Acceleration[3]
+  "Force on the mass, resolved in frame_a"
+  variable f::Force[3]
+relations
+  r_cm = [0, 0, z_cm]
+  v_0 = der(frame_a.r_0)
+  a_0 = der(v_0)
+  w = MultibodyComponents.angular_velocity2(frame_a.R)
+  z = der(w)
+  g_0 = MultibodyComponents.gravity_acceleration(frame_a.r_0 + MultibodyComponents.resolve1(frame_a.R, r_cm), point_gravity)
+  f = m * (MultibodyComponents.resolve2(frame_a.R, a_0 - g_0) + MultibodyComponents.cross(z, r_cm) + MultibodyComponents.cross(w, MultibodyComponents.cross(w, r_cm)))
+  frame_a.f = f
+  frame_a.tau = MultibodyComponents.cross(r_cm, f)
+end
+
+"""
+Anti-heeling tank as a variable mass on the hull.
+
+Combines the upstream tank logic (`DyadShip.Ship.Tank`: bounded fill volume
+integrating the pump flow in the direction set by the heeling moment and the
+tank's side) with a `VariableMass` at the tank's position `r_tank` (the
+tank bottom centre in the ship frame): the liquid mass is `rho · volume` and
+its centre sits at half the liquid height `volume / A_tank`. The righting
+moment of an `AntiHeeling` system therefore comes from where the water is,
+together with the added weight, the shift of the ship's centre of gravity and
+the change in roll inertia, instead of an applied torque.
+"""
+component BallastTank
+  "Hull frame"
+  frame_a = Frame3D()
+  "Heeling moment seen by the ship [t m] (sign selects the pumping direction)"
+  M_input = RealInput()
+  "Pump flow [m³/h]"
+  Q_input = RealInput()
+  fill_level = RealOutput()
+  "Liquid volume [m³]"
+  volume = RealOutput()
+  "Liquid mass [kg]"
+  mass = RealOutput()
+  "Tank bottom centre in the ship frame [x fwd, y port, z up]"
+  parameter r_tank::Length[3] = [50, 8, 1]
+  "Tank volume [m³]"
+  parameter V::Real = 100
+  "Tank height [m]"
+  parameter H::Length = 5
+  "Tank footprint [m²]"
+  parameter A_tank::Area = V / H
+  "Liquid density [t/m³]"
+  parameter rho::Real = 1.025
+  logic = DyadShip.Ship.Tank(CoG_trans = r_tank[2], V = V, H = H, rho = rho)
+  mount = MultibodyComponents.FixedTranslation(r = r_tank, render = false)
+  liquid = VariableMass()
+relations
+  connect(frame_a, mount.frame_a)
+  connect(mount.frame_b, liquid.frame_a)
+  logic.M_input = M_input
+  logic.Q_input = Q_input
+  fill_level = logic.fill_level
+  volume = logic.volume
+  mass = rho * 1000 * volume
+  liquid.m = mass
+  liquid.z_cm = 0.5 * volume / A_tank
+end

@@ -23,6 +23,7 @@ include("Environment_test.jl")
 include("VariableEnvironment_test.jl")
 end
 include("Machinery/tests.jl")
+include("MoistAir/tests.jl")
 include("Propulsion/tests.jl")
 include("Ship/tests.jl")
 include("Ship6DOF/tests.jl")
