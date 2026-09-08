@@ -1,0 +1,183 @@
+"""
+Liquid in a tank as a `VariableMass` on the hull, fed by the tank's volume
+and level (from an `IncompressibleFlowComponents` `OpenTank_2Port`): the mass
+is `rho · volume` and its centre sits at half the liquid height above the
+tank bottom `r_tank` in the ship frame.
+"""
+component TankLiquidMass
+  "Hull frame"
+  frame_a = Frame3D()
+  "Liquid volume [m³]"
+  volume = RealInput()
+  "Liquid level above the tank bottom [m]"
+  level = RealInput()
+  "Liquid mass [kg]"
+  mass = RealOutput()
+  "Tank bottom centre in the ship frame [x fwd, y port, z up]"
+  parameter r_tank::Length[3] = [50, 8, 1]
+  "Liquid density [kg/m³]"
+  parameter rho::Density = 1025
+  mount = MultibodyComponents.FixedTranslation(r = r_tank, render = false)
+  liquid = VariableMass()
+relations
+  connect(frame_a, mount.frame_a)
+  connect(mount.frame_b, liquid.frame_a)
+  mass = rho * volume
+  liquid.m = mass
+  liquid.z_cm = 0.5 * level
+end
+
+"""
+Centrifugal pump as a pressure-flow relation with a check valve.
+
+Affinity-law characteristic `H = s² H0 - k Q|Q| - k_lin Q` for the head
+rise from `port_a` to `port_b`, with `s = speed` the speed fraction, so the
+delivered flow follows from the pressures of the network (a resistive
+element, not a flow source). The small laminar term `k_lin Q` keeps the
+flow-pressure relation non-singular at zero flow, which the initialization
+needs. At `s = 0` the pump is a quadratic resistance, and reverse flow
+meets the much larger `k_back` (a smooth check valve), so a stopped branch
+passes no water. Isenthalpic transport; the hydraulic power is `rho g H Q`.
+"""
+component CentrifugalPump
+  extends IncompressibleFlowComponents.Interfaces.PartialTwoPortTransport
+  "Speed fraction N / N_nominal, 0 = stopped"
+  speed = RealInput()
+  "Hydraulic power delivered to the fluid [W]"
+  power = RealOutput()
+  "Shut-off head at nominal speed [m]"
+  parameter H0::Length = 15
+  "Head-flow coefficient: H = s² H0 - k Q|Q| [s²/m⁵]"
+  parameter k::Real = 3600
+  "Resistance coefficient for reverse flow (check valve)"
+  parameter k_back::Real = 100 * 3600
+  "Laminar head-loss coefficient [s/m²]"
+  parameter k_lin::Real = 10
+  "Flow scale of the smooth forward/reverse transition [m³/s]"
+  parameter Q_eps::Real = 1e-4
+  "Temperature at which the medium density is evaluated"
+  parameter T_ref::Temperature = 288.15
+  parameter g::Acceleration = 9.80665
+  variable rho::Density
+  "Volume flow from port_a to port_b"
+  variable Q::VolumeFlowRate
+  "Head rise from port_a to port_b"
+  variable head::Length
+  variable k_eff::Real
+relations
+  rho = IncompressibleFlowComponents.Media.density(port_a.medium, T_ref)
+  Q = m_flow / rho
+  k_eff = k + (k_back - k) * (0.5 - 0.5 * tanh(Q / Q_eps))
+  head = speed^2 * H0 - k_eff * Q * abs(Q) - k_lin * Q
+  dp = -rho * g * head
+  power = rho * g * head * Q
+end
+
+"""
+Anti-heeling tanks and transfer pumps as an `IncompressibleFlowComponents`
+circuit, to be extended by a ship assembly (fluid ports must not pass through
+wrapper components: the stream expansion then leaves the port enthalpies as
+runaway states, so this is a partial that the ship test extends).
+
+Two `OpenTank_2Port` tanks (`tank_a` at `r_tank_a`, `tank_b` at `r_tank_b`;
+each liquid also a `TankLiquidMass` on the `hull` frame) are joined by two
+antiparallel branches, a `CentrifugalPump` and a `ValveLinear` in series for
+A→B and the same for B→A. The extender sets `flow_cmd` [m³/h] and
+`direction` (+1 = A→B, -1 = B→A): the active pump's speed fraction is
+`flow_cmd / Q_nominal` through a `T_pump` spin-up ramp, its valve opens
+through a `T_valve` actuator ramp once more than 1 m³/h is requested, and
+closes again as the receiving tank nears `fill_max` or the emptying one
+nears `fill_min`. The idle branch has its pump stopped (a resistance with a
+check valve) and its valve shut. The water actually moved follows the pump
+characteristic against the tank level difference and the valve losses.
+
+The ramps also keep the fluid loop free of jumps: `direction` and `flow_cmd`
+come from a clocked controller, and every clock tick re-checks the
+algebraic residual without re-solving it, so a discrete command must reach
+the pump and valve equations only through a continuous state.
+"""
+partial component AntiHeelingCircuit
+  "Hull frame the tank liquids act on"
+  hull = Frame3D()
+  path medium::IncompressibleFlowComponents.Media.AbstractMedium = IncompressibleFlowComponents.Media.ConstantIncompressible(density = 1025.0)
+  "Tank A bottom centre in the ship frame"
+  parameter r_tank_a::Length[3] = [50, 8, 1]
+  "Tank B bottom centre in the ship frame"
+  parameter r_tank_b::Length[3] = [50, -8, 1]
+  "Tank volume [m³]"
+  parameter V_tank::Real = 100
+  "Tank height [m]"
+  parameter H_tank::Length = 5
+  "Initial fill fraction of both tanks"
+  parameter fill_start::Real = 0.45
+  parameter rho_liquid::Density = 1025
+  parameter T_liquid::Temperature = 288.15
+  "Pump nominal capacity [m³/h] at full speed"
+  parameter Q_nominal::Real = 200
+  "Pump shut-off head at full speed [m]"
+  parameter H0::Length = 15
+  "Pump head-flow coefficient [s²/m⁵]"
+  parameter k_pump::Real = 3600
+  "Valve sizing point: mass flow through the fully open valve"
+  parameter m_flow_nominal::MassFlowRate = 57
+  "Valve sizing point: pressure drop at m_flow_nominal"
+  parameter dp_nominal::Pressure = 3e4
+  "Highest fill fraction of the receiving tank"
+  parameter fill_max::Real = 0.85
+  "Lowest fill fraction of the emptying tank"
+  parameter fill_min::Real = 0.05
+  "Width of the fill-limit ramp"
+  parameter fill_band::Real = 0.02
+  "Valve actuators: openings ramp at 1/T_valve per second"
+  parameter T_valve::Time = 5
+  "Pump speed ramp: rest to full speed in T_pump seconds"
+  parameter T_pump::Time = 5
+  tank_a = IncompressibleFlowComponents.Volumes.OpenTank_2Port(height = H_tank, A_cross = V_tank / H_tank, p_ambient = 101325, T_start = T_liquid, level_start = fill_start * H_tank)
+  tank_b = IncompressibleFlowComponents.Volumes.OpenTank_2Port(height = H_tank, A_cross = V_tank / H_tank, p_ambient = 101325, T_start = T_liquid, level_start = fill_start * H_tank)
+  mass_a = TankLiquidMass(r_tank = r_tank_a, rho = rho_liquid)
+  mass_b = TankLiquidMass(r_tank = r_tank_b, rho = rho_liquid)
+  pump_ab = CentrifugalPump(H0 = H0, k = k_pump, k_back = 100 * k_pump, T_ref = T_liquid)
+  pump_ba = CentrifugalPump(H0 = H0, k = k_pump, k_back = 100 * k_pump, T_ref = T_liquid)
+  valve_ab = IncompressibleFlowComponents.Valves.ValveLinear(opening_mode = IncompressibleFlowComponents.BoundarySourceMode.InputConnector(), m_flow_nominal = m_flow_nominal, dp_nominal = dp_nominal)
+  valve_ba = IncompressibleFlowComponents.Valves.ValveLinear(opening_mode = IncompressibleFlowComponents.BoundarySourceMode.InputConnector(), m_flow_nominal = m_flow_nominal, dp_nominal = dp_nominal)
+  act_ab = BlockComponents.Nonlinear.SlewRateLimiter(rising = 1 / T_valve, td = 0.05)
+  act_ba = BlockComponents.Nonlinear.SlewRateLimiter(rising = 1 / T_valve, td = 0.05)
+  spd_ab = BlockComponents.Nonlinear.SlewRateLimiter(rising = 1 / T_pump, td = 0.05)
+  spd_ba = BlockComponents.Nonlinear.SlewRateLimiter(rising = 1 / T_pump, td = 0.05)
+  "Requested transfer rate [m³/h], set by the extender"
+  variable flow_cmd::Real
+  "+1 transfers A→B, -1 transfers B→A, set by the extender"
+  variable direction::Real
+  "Mass flow A→B through the branches [kg/s]"
+  variable m_flow_ab::Real
+  variable on_ab::Real
+  variable on_ba::Real
+  variable speed_frac::Real
+  variable fill_a::Real
+  variable fill_b::Real
+relations
+  continuity(medium, tank_a.port1.medium)
+  connect(tank_a.port1, pump_ab.port_a, valve_ba.port_b)
+  connect(tank_b.port1, pump_ba.port_a, valve_ab.port_b)
+  connect(pump_ab.port_b, valve_ab.port_a)
+  connect(pump_ba.port_b, valve_ba.port_a)
+  connect(hull, mass_a.frame_a, mass_b.frame_a)
+  mass_a.volume = tank_a.fluidVolume
+  mass_a.level = tank_a.level
+  mass_b.volume = tank_b.fluidVolume
+  mass_b.level = tank_b.level
+  fill_a = tank_a.levelNormalized
+  fill_b = tank_b.levelNormalized
+  on_ab = ifelse(direction > 0.5, 1, 0)
+  on_ba = ifelse(direction < -0.5, 1, 0)
+  speed_frac = clamp(flow_cmd / Q_nominal, 0, 1)
+  spd_ab.u = on_ab * speed_frac
+  spd_ba.u = on_ba * speed_frac
+  pump_ab.speed = spd_ab.y
+  pump_ba.speed = spd_ba.y
+  act_ab.u = on_ab * clamp(flow_cmd, 0, 1) * clamp((fill_max - fill_b) / fill_band, 0, 1) * clamp((fill_a - fill_min) / fill_band, 0, 1)
+  act_ba.u = on_ba * clamp(flow_cmd, 0, 1) * clamp((fill_max - fill_a) / fill_band, 0, 1) * clamp((fill_b - fill_min) / fill_band, 0, 1)
+  valve_ab.opening = act_ab.y
+  valve_ba.opening = act_ba.y
+  m_flow_ab = pump_ab.m_flow - pump_ba.m_flow
+end

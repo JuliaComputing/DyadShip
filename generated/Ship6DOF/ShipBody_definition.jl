@@ -39,8 +39,9 @@ Outputs are what the hydrodynamic components consume: `Draft`, `Displacement`
 velocities of `frame_a`. Connect `HydrodynamicXYY`, `HydrodynamicZRP`,
 propulsors and wind loads to `frame_a`.
 
-Sign conventions: positive heel is starboard down, positive trim is bow down,
-positive yaw is bow to port (counter-clockwise seen from above).
+Sign conventions: positive heel is starboard down, positive trim is bow up
+(the forward perpendicular higher than the aft one, as upstream), positive
+yaw is bow to port (counter-clockwise seen from above).
 
 Limitations, as upstream: heel and trim must stay within small-angle theory
 (about ±20°), the draft must stay positive, and no wave excitation is modelled.
@@ -73,7 +74,7 @@ Limitations, as upstream: heel and trim must stay within small-angle theory
 | `ini_Pos`         | Initial world position of frame_a; z = -draft puts the keel at the design draft                         | m  |   [0, 0, -4] |
 | `ini_Vel`         | Initial world velocity of frame_a                         | m/s  |   [0, 0, 0] |
 | `ini_Yaw`         | Initial heading (yaw about world z)                         | rad  |   0 |
-| `ini_Trim`         | Initial trim (pitch), positive bow down                         | rad  |   0 |
+| `ini_Trim`         | Initial pitch angle about the ship y axis, positive bow down (opposite in sign to the Trim output)                         | rad  |   0 |
 | `ini_Heel`         | Initial heel (roll), positive starboard down                         | rad  |   0 |
 | `render`         | Render the body sphere in 3D animations                         | --  |   false |
 
@@ -196,7 +197,7 @@ connectors that can be connected together ([`Frame3D`](@ref))
   append!(__params, @parameters (ini_Yaw::Real), [description = "Initial heading (yaw about world z)"])
   __initial_conditions[ini_Yaw] = __local__ini_Yaw
   __local__ini_Trim = ini_Trim
-  append!(__params, @parameters (ini_Trim::Real), [description = "Initial trim (pitch), positive bow down"])
+  append!(__params, @parameters (ini_Trim::Real), [description = "Initial pitch angle about the ship y axis, positive bow down (opposite in sign to the Trim output)"])
   __initial_conditions[ini_Trim] = __local__ini_Trim
   __local__ini_Heel = ini_Heel
   append!(__params, @parameters (ini_Heel::Real), [description = "Initial heel (roll), positive starboard down"])

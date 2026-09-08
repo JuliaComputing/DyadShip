@@ -1,17 +1,23 @@
 """
 Clocked on/off state of the anti-heeling pump with hysteresis between
-`off_angle` and `max_angle` on the sampled absolute heel.
+`off_angle` and `max_angle` on the sampled heel, and the transfer direction,
+chosen from the heel sign when the pump starts and latched while it runs
+(+1 = port to starboard, for a port-down heel).
 """
 component AntiHeelingRelay@[input clk extends Discrete]
-  "Sampled absolute heel [deg]"
-  heel_abs = RealInput@[clk]()
+  "Sampled heel [deg], positive starboard down"
+  heel = RealInput@[clk]()
   "Pump command, 1 = on"
   on = RealOutput@[clk]()
+  "Transfer direction, +1 = port to starboard, -1 = starboard to port"
+  dir = RealOutput@[clk]()
   parameter max_angle::Real = 0.1
   parameter off_angle::Real = 0.001
 relations
-  on@clk = ifelse(on@(clk-1) > 0.5, ifelse(heel_abs@clk < off_angle, 0, 1), ifelse(heel_abs@clk > max_angle, 1, 0))
+  on@clk = ifelse(on@(clk-1) > 0.5, ifelse(abs(heel@clk) < off_angle, 0, 1), ifelse(abs(heel@clk) > max_angle, 1, 0))
+  dir@clk = ifelse(on@(clk-1) > 0.5, dir@(clk-1), ifelse(heel@clk > 0, -1, 1))
   initial on@(clk-1) = 0
+  initial dir@(clk-1) = 1
 end
 
 """
@@ -47,6 +53,8 @@ component AntiHeeling
   heel_out = RealOutput()
   "1 while the pump is commanded on"
   pump_on = RealOutput()
+  "Latched transfer direction, +1 = port to starboard, -1 = starboard to port"
+  direction = RealOutput()
 
   ramp = BlockComponents.Nonlinear.SlewRateLimiter(rising = Q / ramp_time, td = 0.05)
   torque = MultibodyComponents.WorldTorque(resolve_in_frame = MultibodyComponents.ResolveInFrame.FrameB())
@@ -54,6 +62,7 @@ component AntiHeeling
   clock = DiscreteComponents.PeriodicClock(dt = dt)
   relay = AntiHeelingRelay(max_angle = max_angle, off_angle = off_angle)
   hold = DiscreteComponents.ZeroOrderHold(initial_condition = 0)
+  hold_dir = DiscreteComponents.ZeroOrderHold(initial_condition = 1)
 
   "Ship design beam"
   parameter B::Length = 24.3
@@ -93,10 +102,12 @@ relations
   connect(frame_a, torque.frame_b)
   initial M_tks = 0
   heel_out = ship_heel
-  sampler.u = abs(ship_heel)
-  connect(sampler.y, relay.heel_abs, clock.y)
+  sampler.u = ship_heel
+  connect(sampler.y, relay.heel, clock.y)
   connect(relay.on, hold.u)
+  connect(relay.dir, hold_dir.u)
   on = hold.y
+  direction = hold_dir.y
   pump_on = on
   ramp.u = Q * clamp(on, 0, 1) * ifelse(time < startup_delay, 0, 1)
   pump_flow = ramp.y

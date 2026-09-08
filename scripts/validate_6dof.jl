@@ -32,6 +32,13 @@ p = plot(ts, heel, xlabel = "t [s]", ylabel = "heel [deg]", label = "heel", titl
 plot!(p, ts, rad2deg.(sample(sol, m.ship.Trim, ts)) .* 100, label = "trim x100")
 savefig(p, joinpath(ASSETS, "ship6dof_roll_decay.png"))
 
+res = S6.RollDecayTMDTransient(); sol = res.sol; m = symbolic_container(res)
+heel_t = rad2deg.(sample(sol, m.ship.Heel, ts)); zc_t = [ts[i] for i in 2:length(ts) if heel_t[i-1] > 0 && heel_t[i] <= 0]
+peaks_t = [maximum(abs.(heel_t[(ts .>= zc_t[i]) .& (ts .< zc_t[i+1])])) for i in 1:length(zc_t)-1]
+@printf("  with a 100 t tuned mass damper 15 m up: peaks %s deg (without: %s), heel at 60 s %.2f deg vs %.2f, max stroke %.1f m\n", string(round.(peaks_t[1:min(end, 4)], digits = 2)), string(round.(peaks[1:min(end, 4)], digits = 2)), heel_t[findfirst(==(60.0), ts)], heel[findfirst(==(60.0), ts)], maximum(abs.(sample(sol, m.tmd.stroke, ts))))
+plot!(p, ts, heel_t, label = "heel with TMD", lw = 2)
+savefig(p, joinpath(ASSETS, "ship6dof_roll_decay.png"))
+
 println("== Speed trial")
 res = S6.SpeedTrialTransient(); sol = res.sol; m = symbolic_container(res)
 u_end = sol(600; idxs = m.ship.Surge)
@@ -109,6 +116,14 @@ p = plot(ts, rad2deg.(sample(sol, m.ship.Heel, ts)), xlabel = "t [s]", ylabel = 
 plot!(p, ts, sample(sol, m.tank_port.mass, ts) ./ 1e5, label = "port tank mass / 100 t", lw = 2)
 plot!(p, ts, sample(sol, m.tank_starboard.mass, ts) ./ 1e5, label = "starboard tank mass / 100 t", lw = 2)
 savefig(p, joinpath(ASSETS, "ship6dof_ballast_tanks.png"))
+
+res = S6.FourWingSailsAHCircuitTransient(); sol = res.sol; m = symbolic_container(res)
+ts = collect(1:1:900); mab = sample(sol, m.m_flow_ab, ts); full = mab .< -50
+@printf("  with the IncompressibleFlowComponents ballast circuit: retcode %s, heel %.2f deg at 290 s, %.2f deg at 900 s; peak transfer %.0f kg/s, pump head %.1f-%.1f m, tank fill %.2f / %.2f\n", sol.retcode, rad2deg(sol(290; idxs = m.ship.Heel)), rad2deg(sol(900; idxs = m.ship.Heel)), maximum(abs.(mab)), minimum(sample(sol, m.pump_ba.head, ts[full])), maximum(sample(sol, m.pump_ba.head, ts[full])), sol(900; idxs = m.fill_a), sol(900; idxs = m.fill_b))
+
+println("== Bunkering 300 t forward at rest (FuelTank variable mass)")
+res = S6.BunkeringTransient(); sol = res.sol; m = symbolic_container(res)
+@printf("  retcode %s, draft %.3f -> %.3f m, trim %.3f deg (bow down), displacement %.0f -> %.0f t\n", sol.retcode, sol(0; idxs = m.ship.Draft), sol(5400; idxs = m.ship.Draft), -rad2deg(sol(5400; idxs = m.ship.Trim)), sol(0; idxs = m.ship.Displacement) / 1e3, sol(5400; idxs = m.ship.Displacement) / 1e3)
 
 println("== Moist air: dew-point sensor on a ventilated space (HVACComponents)")
 res = DyadShip.MoistAir.MoistAirDewPointTransient(); sol = res.sol; m = symbolic_container(res)

@@ -10,7 +10,9 @@ import Moshi as __Ext__Moshi
    AntiHeelingRelay(; name, max_angle, off_angle)
 
 Clocked on/off state of the anti-heeling pump with hysteresis between
-`off_angle` and `max_angle` on the sampled absolute heel.
+`off_angle` and `max_angle` on the sampled heel, and the transfer direction,
+chosen from the heel sign when the pump starts and latched while it runs
+(+1 = port to starboard, for a port-down heel).
 
 ## Parameters:
 
@@ -21,8 +23,9 @@ Clocked on/off state of the anti-heeling pump with hysteresis between
 
 ## Connectors
 
- * `heel_abs` - This connector represents a real signal as an input to a component ([`RealInput`](@ref))
+ * `heel` - This connector represents a real signal as an input to a component ([`RealInput`](@ref))
  * `on` - This connector represents a real signal as an output from a component ([`RealOutput`](@ref))
+ * `dir` - This connector represents a real signal as an output from a component ([`RealOutput`](@ref))
 """
 @component function AntiHeelingRelay(; name = nothing, max_angle=0.1, off_angle=0.001, kwargs...)
   isnothing(name) && throw(ArgumentError("""
@@ -65,8 +68,9 @@ Clocked on/off state of the anti-heeling pump with hysteresis between
   ### Final Parameters (assignments)
 
   ### Final Path Parameters
-  append!(__vars, @variables (heel_abs(t)::Real), [input = true])
+  append!(__vars, @variables (heel(t)::Real), [input = true])
   append!(__vars, @variables (on(t)::Real), [output = true])
+  append!(__vars, @variables (dir(t)::Real), [output = true])
 
   ### Variables (declarations)
 
@@ -84,12 +88,14 @@ Clocked on/off state of the anti-heeling pump with hysteresis between
 
   ### Initialization Equations
   push!(__initialization_eqs, on(ShiftIndex() -1) ~ 0)
+  push!(__initialization_eqs, dir(ShiftIndex() -1) ~ 1)
 
   ### Assertions
   __assertions = []
 
   ### Equations
-  push!(__eqs, on ~ ifelse(on(ShiftIndex() -1) > 0.5, ifelse(heel_abs < off_angle, 0, 1), ifelse(heel_abs > max_angle, 1, 0)))
+  push!(__eqs, on ~ ifelse(on(ShiftIndex() -1) > 0.5, ifelse(abs(heel) < off_angle, 0, 1), ifelse(abs(heel) > max_angle, 1, 0)))
+  push!(__eqs, dir ~ ifelse(on(ShiftIndex() -1) > 0.5, dir(ShiftIndex() -1), ifelse(heel > 0, -1, 1)))
 
   # Return completely constructed System
   return System(__eqs, t, __vars, __params; systems=__systems, initial_conditions=__initial_conditions, guesses=__guesses, name, initialization_eqs=__initialization_eqs, bindings=__bindings, assertions=__assertions)

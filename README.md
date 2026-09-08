@@ -25,7 +25,10 @@ The primary stack mirrors ShipSIM's architecture on `Frame3D` connectors:
 | `ShipWind` | Fujiwara superstructure wind loads at the centre of the lateral area. |
 | `WingSail` | Rigid wing sail on a servo-driven mast revolute, NACA tables, forces at the quarter chord of the rotated sail. |
 | `POD4Q` | Azimuthing pod: servo revolute, strut and an internal `Propeller4Q` that reads its own advance speed. |
-| `AntiHeeling` / `BallastTank` / `VariableMass` | Clocked hysteresis pump controller with ramped flow; the tank liquids as variable-mass points on the hull, so the righting moment, the added weight and the change of the ship's centre of gravity and roll inertia come from where the water is. |
+| `AntiHeeling` / `BallastTank` / `VariableMass` | Clocked hysteresis pump controller with ramped flow and a latched transfer direction; the tank liquids as variable-mass points on the hull, so the righting moment, the added weight and the change of the ship's centre of gravity and roll inertia come from where the water is. |
+| `AntiHeelingCircuit` / `CentrifugalPump` / `TankLiquidMass` | The same tanks as `IncompressibleFlowComponents` open tanks (their liquid a `TankLiquidMass` on the hull) joined by two antiparallel affinity-law pump and linear-valve branches: the transfer rate follows the pump characteristic against the level difference and the valve losses. A partial the ship assembly extends, because fluid ports cannot pass through a wrapper. |
+| `FuelTank` | Consumable liquid on `VariableMass`: burn or bunker fuel and the hull's draft, trim and inertia follow. |
+| `RollTunedMassDamper` | The building tuned mass damper for roll: a mass on a transverse `Prismatic` slide high in the ship with a `SpringDamper` tuned to the roll period (Den Hartog); damps roll, does not correct static heel. |
 | `Crane` / `Cable` | Slewing and luffing revolutes on position servos, boom, tension-only cable with a clocked break latch; loads react into the hull. |
 | `ApparentSpeedXY` | Frame-based apparent wind / current sensor. |
 | `WaypointAutopilot` / `WaypointSequencer` | `LimPID` heading autopilot with throttle ramp, and a clocked waypoint table that advances its index on arrival (`DiscreteComponents`). |
@@ -40,6 +43,7 @@ figures in `assets/ship6dof_*.png`. Results for the sample hull (rudder rate
 | Analysis | Result |
 |---|---|
 | `RollDecayTransient` | roll period 9.1 s (linear estimate 8.4 s; the difference is the sway added-mass coupling of a hull rolling about a CoG 5 m above its hydrodynamic centre), damping ratio 0.047 for the 0.05 setting |
+| `RollDecayTMDTransient` | same release with a 100 t tuned mass damper 15 m above the roll centre: first peaks 4.6°, 1.6°, 0.7° against 8.5°, 6.2°, 4.6°, heel 0.1° at 60 s; the mass strokes 6.4 m |
 | `SpeedTrialTransient` | 6.05 m/s at 100 rpm, thrust 129 kN against 128 kN resistance, 1.1 MW shaft power |
 | `TurningCircleTransient` (35°) | advance 3.9 L, transfer 0.7 L, tactical diameter 3.2 L; steady turn at 44 % of approach speed, 0.95 °/s, 35° drift, 0.35° outward heel |
 | `RudderReturnTransient` | yaw rate halves 24 s after the rudder is centred and decays to zero |
@@ -50,6 +54,8 @@ figures in `assets/ship6dof_*.png`. Results for the sample hull (rudder rate
 | `FourWingSailsTransient` | four sails, 15 m/s from the port beam, autopilot holding course: 7.17 m/s at 100 rpm against 6.05 m/s without sails, 29 kN sail thrust, 1.2° heel |
 | `FourWingSailsAHTransient` | same with the anti-heeling system enabled at 300 s: heel back to zero by 750 s, tank levels 65 % port / 25 % starboard |
 | `FourWingSailsAHTanksTransient` | same with the tanks as moving masses instead of an applied torque: heel back to zero by 700 s with 67 t / 25 t in the tanks, ship 7 cm deeper from the ballast |
+| `FourWingSailsAHCircuitTransient` | same with the tanks as `IncompressibleFlowComponents` open tanks and a pump/valve circuit: the pump runs at 200 m³/h (57 kg/s) against a 3.0 to 4.7 m head, heel 1.15° to 0.005° by 700 s, tank fills 0.45 / 0.45 to 0.65 / 0.25 |
+| `BunkeringTransient` | 300 t of fuel loaded forward in one hour at rest: draft +0.20 m, trim 0.52° by the bow, matching the hydrostatic estimate |
 | `MoistAir.MoistAirDewPointTransient` | 30 °C, 80 % air through a ventilated space on `HVACComponents` moist-air media: outlet dew point 26.20 °C (Magnus reference 26.17 °C) |
 | `PodTurningCircleTransient` | 35° pod azimuth: steady radius 1.0 L at 2.1 m/s, no cavitation |
 | `CraneOperationTransient` | 50 t load luffed, slewed 90° to port and lowered: ship heels to 2.1°, cable tension 490 kN |

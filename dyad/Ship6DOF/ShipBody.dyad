@@ -29,8 +29,9 @@ Outputs are what the hydrodynamic components consume: `Draft`, `Displacement`
 velocities of `frame_a`. Connect `HydrodynamicXYY`, `HydrodynamicZRP`,
 propulsors and wind loads to `frame_a`.
 
-Sign conventions: positive heel is starboard down, positive trim is bow down,
-positive yaw is bow to port (counter-clockwise seen from above).
+Sign conventions: positive heel is starboard down, positive trim is bow up
+(the forward perpendicular higher than the aft one, as upstream), positive
+yaw is bow to port (counter-clockwise seen from above).
 
 Limitations, as upstream: heel and trim must stay within small-angle theory
 (about ±20°), the draft must stay positive, and no wave excitation is modelled.
@@ -84,7 +85,7 @@ component ShipBody
   parameter ini_Vel::Velocity[3] = [0, 0, 0]
   "Initial heading (yaw about world z)"
   parameter ini_Yaw::Angle = 0
-  "Initial trim (pitch), positive bow down"
+  "Initial pitch angle about the ship y axis, positive bow down (opposite in sign to the Trim output)"
   parameter ini_Trim::Angle = 0
   "Initial heel (roll), positive starboard down"
   parameter ini_Heel::Angle = 0
@@ -97,7 +98,7 @@ component ShipBody
   Displacement = RealOutput()
   "Heel angle [rad], positive starboard down"
   Heel = RealOutput()
-  "Trim angle [rad], positive bow down"
+  "Trim angle [rad], positive bow up (upstream convention)"
   Trim = RealOutput()
   "Heading [rad], positive bow to port; unbounded"
   Yaw = RealOutput()

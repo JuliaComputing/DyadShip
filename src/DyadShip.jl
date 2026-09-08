@@ -8,6 +8,7 @@ using MultibodyComponents
 using ElectricalComponents
 using DiscreteComponents
 using HVACComponents
+using IncompressibleFlowComponents
 using ModelingToolkit
 
 include("FlettnerCFDLive.jl")

@@ -139,3 +139,29 @@ analysis FourWingSailsAHTanksTransient
   extends TransientAnalysis(stop = 900.0)
   model = FourWingSailsAHTanks()
 end
+
+"""
+`FourWingSails` with the anti-heeling tanks and pumps as an
+`IncompressibleFlowComponents` circuit (`AntiHeelingCircuit`): two open
+tanks on the hull, each liquid also a mass on the hull, joined by two
+antiparallel centrifugal pump and valve branches. The `AntiHeeling`
+controller only requests a transfer rate and a latched direction; the water
+actually moved follows the pump characteristic against the tank level
+difference and the valve losses, and the righting moment comes from the tank
+masses (`apply_moment = false`).
+"""
+test component FourWingSailsAHCircuit
+  extends FourWingSails()
+  extends AntiHeelingCircuit()
+  antiheeling = AntiHeeling(B = 20, b = 4, V_tk = 100, startup_delay = 300, apply_moment = false)
+relations
+  connect(ship.frame_a, antiheeling.frame_a, hull)
+  antiheeling.ship_heel = ship.Heel * 180 / π
+  flow_cmd = antiheeling.pump_flow
+  direction = antiheeling.direction
+end
+
+analysis FourWingSailsAHCircuitTransient
+  extends TransientAnalysis(stop = 900.0)
+  model = FourWingSailsAHCircuit()
+end

@@ -33,7 +33,8 @@ World: x east, y north, z up, free surface at z = 0
 z up, origin at the aft perpendicular / centreline / keel in 3D (upstream
 convention; CoG at `[50.364, 0, 7]` for the sample hull). Positive yaw is bow
 to port, positive rudder order turns the ship to port, positive heel is
-starboard down, positive trim is bow down. Wind and current directions are
+starboard down, the `Trim` output is positive bow up (upstream formula) while
+the pitch Euler angle is positive bow down. Wind and current directions are
 "coming from", 0° = north, 90° = east.
 
 ## Upstream component map
@@ -53,7 +54,10 @@ starboard down, positive trim is bow down. Wind and current directions are
 | `AlternativePropulsion.WingSail` | `Ship6DOF.WingSail` | servo revolute, NACA tables, forces at the rotated quarter chord |
 | (new) | planar `Propulsion.FlettnerRotor`, `FlettnerRotorOnline` | WaterLily-derived Magnus coefficients |
 | `AutoPilot.SimpleAutoPilot` | `Ship.HeadingAutoPilot` (PI + throttle ramp), `Ship6DOF.WaypointAutopilot` (`LimPID`) + `WaypointSequencer` (clocked waypoint table) | |
-| `AntiHeelingSystem.AntiHeeling`, `Tank` | `Ship6DOF.AntiHeeling`, `Ship.Tank`, `Ship6DOF.BallastTank` (+ `VariableMass`) | clocked on/off hysteresis and slew-rate ramp; tanks optionally as moving masses on the hull |
+| `AntiHeelingSystem.AntiHeeling`, `Tank` | `Ship6DOF.AntiHeeling`, `Ship.Tank`, `Ship6DOF.BallastTank` / `AntiHeelingCircuit` (+ `VariableMass`, `TankLiquidMass`) | clocked on/off hysteresis with latched direction and slew-rate ramp; tanks as moving masses on the hull, optionally with a pump/valve circuit |
+| (new) | `Ship6DOF.FuelTank` | consumable liquid mass on the hull |
+| (new) | `Ship6DOF.RollTunedMassDamper` | inertial (tuned-mass) roll damper on a prismatic slide |
+| (new) | `Ship6DOF.AntiHeelingCircuit`, `CentrifugalPump`, `TankLiquidMass` | pump/valve ballast transfer on `IncompressibleFlowComponents` |
 | `Machines.SimpleDieselEngine` | `Propulsion.SimpleDieselEngine` | tables inlined as `ifelse` |
 | `Machines.Crane`, `SubComponents.Cable` | `Ship6DOF.Crane`, `Ship6DOF.Cable` | 3D; cable break as a clocked latch (`CableBreakLatch`) |
 | `Electrical.OnOffConsumer` | `Machinery.OnOffConsumer` | driven by a work signal instead of a random schedule |
@@ -149,9 +153,27 @@ Installing it precompiles a Lustre toolchain (`Heptagon_jll`,
   - `IncompressibleFlowComponents` 0.1.0: liquid media (constant or
     polynomial in T), `FluidPort` with `path medium`, pumps and fans with
     characteristics, valves, open tanks, volumes, ε-NTU and UA heat
-    exchangers, pT and mass-flow boundaries. The anti-heeling pump and
-    piping could be modelled with it; the tank liquids themselves are
-    already `BallastTank` masses on the hull.
+    exchangers, pT and mass-flow boundaries. The anti-heeling
+    circuit (`Ship6DOF.AntiHeelingCircuit`) is built on it (project
+    dependency). Lessons: the library `Pump` is a flow source that needs a
+    speed floor and then chatters at its zero-flow kink whenever the head
+    across an idle branch changes sign, so the circuit uses an affinity-law
+    `CentrifugalPump` (pressure-flow relation with a check valve and a small
+    laminar term, non-singular at rest); `FluidPort`s must not pass through
+    wrapper components (the stream expansion turns the port enthalpy into a
+    runaway state), hence the circuit is a partial the ship test extends; an
+    enum-variant field such as `LinearFlowCoefficient.K(value = …)` must be a
+    literal, not a parameter. A clocked model (any `DiscreteComponents`
+    clock) runs a callback at every step and every tick whose default
+    `CheckInit` re-checks the algebraic residual without re-solving it, so
+    a discrete output (the latched `direction`, the on/off state) must not
+    enter the fluid loop's algebraic equations directly: at the tick where
+    it jumps the pump flow equation is left with a residual of the size of
+    the jump ("DAE initialization failed … normresid = 0.039", always at an
+    integer second) and the run aborts. Pump speeds and valve openings
+    therefore pass through `SlewRateLimiter` states (`T_pump`, `T_valve`).
+    `ODEAlg.FBDF()` is no cure: the per-step callback resets the BDF history
+    each step, so the step size never grows beyond its initial 6e-7 s.
   - `MediaComponents` / `FluidComponents` (general media and distributed
     pipes) exist but are earlier-stage (`kernel = 3.3.0-rc4`, water only).
 

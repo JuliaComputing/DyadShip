@@ -55,6 +55,7 @@ connectors that can be connected together ([`Frame3D`](@ref))
  * `M_adr` - This connector represents a real signal as an output from a component ([`RealOutput`](@ref))
  * `heel_out` - This connector represents a real signal as an output from a component ([`RealOutput`](@ref))
  * `pump_on` - This connector represents a real signal as an output from a component ([`RealOutput`](@ref))
+ * `direction` - This connector represents a real signal as an output from a component ([`RealOutput`](@ref))
 
 ## Variables
 
@@ -139,6 +140,7 @@ connectors that can be connected together ([`Frame3D`](@ref))
   append!(__vars, @variables (M_adr(t)::Real), [output = true])
   append!(__vars, @variables (heel_out(t)::Real), [output = true])
   append!(__vars, @variables (pump_on(t)::Real), [output = true])
+  append!(__vars, @variables (direction(t)::Real), [output = true])
 
   ### Variables (declarations)
   append!(__vars, @variables (on(t)::Real), [description = "Pump command from the relay, 1 = on"])
@@ -187,6 +189,9 @@ connectors that can be connected together ([`Frame3D`](@ref))
   # Subcomponent hold of type DiscreteComponents.ZeroOrderHold
   hold_overrides = __pop_subcomponent_overrides!(__overrides, "hold")
   push!(__systems, @named hold = DiscreteComponents.ZeroOrderHold(; initial_condition=Float64(0), hold_overrides...))
+  # Subcomponent hold_dir of type DiscreteComponents.ZeroOrderHold
+  hold_dir_overrides = __pop_subcomponent_overrides!(__overrides, "hold_dir")
+  push!(__systems, @named hold_dir = DiscreteComponents.ZeroOrderHold(; initial_condition=Float64(1), hold_dir_overrides...))
 
   ### Check there are no unmatched overrides
   isempty(__overrides) || throw(ArgumentError("overrides: [$(join(keys(__overrides), ", "))] don't match names found in model. These names may exist in the model but could have been conditionally excluded."))
@@ -206,8 +211,9 @@ connectors that can be connected together ([`Frame3D`](@ref))
 
   ### Equations
   push!(__eqs, heel_out ~ ship_heel)
-  push!(__eqs, sampler.u ~ abs(ship_heel))
+  push!(__eqs, sampler.u ~ ship_heel)
   push!(__eqs, on ~ hold.y)
+  push!(__eqs, direction ~ hold_dir.y)
   push!(__eqs, pump_on ~ on)
   push!(__eqs, ramp.u ~ Q * clamp(on, 0, 1) * ifelse(t < startup_delay, 0, 1))
   push!(__eqs, pump_flow ~ ramp.y)
@@ -220,8 +226,9 @@ connectors that can be connected together ([`Frame3D`](@ref))
   push!(__eqs, torque.torque_y ~ 0)
   push!(__eqs, torque.torque_z ~ 0)
   push!(__eqs, connect(frame_a, torque.frame_b))
-  push!(__eqs, connect(sampler.y, relay.heel_abs, clock.y))
+  push!(__eqs, connect(sampler.y, relay.heel, clock.y))
   push!(__eqs, connect(relay.on, hold.u))
+  push!(__eqs, connect(relay.dir, hold_dir.u))
 
   # Return completely constructed System
   return System(__eqs, t, __vars, __params; systems=__systems, initial_conditions=__initial_conditions, guesses=__guesses, name, initialization_eqs=__initialization_eqs, bindings=__bindings, assertions=__assertions)

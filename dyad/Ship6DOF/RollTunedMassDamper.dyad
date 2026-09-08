@@ -1,0 +1,86 @@
+"""
+Tuned mass damper for roll: the building anti-sway device applied to a ship.
+
+A damper mass `m_d` (a `MultibodyComponents.Body`) rides on a transverse
+`Prismatic` slide mounted at `r_mount` in the ship frame, high above the
+roll axis, restrained by a `TranslationalComponents.SpringDamper` between
+the slide's axis and support flanges. When the ship rolls at its natural
+period the mass lags and its inertial reaction through the lever arm
+`h` (mount height above the roll centre) opposes the roll; the damper then
+dissipates the roll energy. Unlike ballast tanks it corrects no static heel;
+it damps roll oscillation the way a tuned mass damper damps a tower.
+
+Default tuning follows Den Hartog for a mass ratio `mu = m_d h² / I_roll`:
+frequency ratio `1 / (1 + mu)` on the roll frequency `2π / T_roll`, damping
+ratio `sqrt(3 mu / (8 (1 + mu)))`; `k` and `d` may be overridden directly.
+The spring is linear and the stroke unlimited; add end stops for real
+installations.
+"""
+component RollTunedMassDamper
+  "Hull frame"
+  frame_a = Frame3D()
+  "Displacement of the damper mass along the slide, positive to port [m]"
+  stroke = RealOutput()
+  "Power dissipated by the damper [W]"
+  dissipation = RealOutput()
+  "Mount point of the slide in the ship frame [x fwd, y port, z up]"
+  parameter r_mount::Length[3] = [50, 0, 22]
+  "Damper mass"
+  parameter m_d::Mass = 100000
+  "Height of the mount above the roll centre"
+  parameter h::Length = 15
+  "Roll moment of inertia the damper is tuned against (rigid plus added)"
+  parameter I_roll::Inertia = 3.4e8
+  "Roll natural period to tune to"
+  parameter T_roll::Time = 9.14
+  "Mass ratio m_d h² / I_roll"
+  parameter mu::Real = m_d * h^2 / I_roll
+  "Tuned natural frequency of the damper [rad/s]"
+  parameter omega_d::Real = 2 * π / T_roll / (1 + mu)
+  "Damping ratio of the damper"
+  parameter zeta_d::Real = sqrt(3 * mu / (8 * (1 + mu)))
+  "Spring constant"
+  parameter k::TranslationalSpringConstant = m_d * omega_d^2
+  "Damping constant"
+  parameter d::TranslationalDampingConstant = 2 * zeta_d * m_d * omega_d
+  mount = MultibodyComponents.FixedTranslation(r = r_mount, render = false)
+  slide = MultibodyComponents.Prismatic(n = [0, 1, 0], render = false, s(initial = 0), v(initial = 0))
+  mass = MultibodyComponents.Body(m = m_d, render = false)
+  spring_damper = TranslationalComponents.Components.SpringDamper(c = k, d = d, s_rel0 = 0)
+relations
+  connect(frame_a, mount.frame_a)
+  connect(mount.frame_b, slide.frame_a)
+  connect(slide.frame_b, mass.frame_a)
+  connect(spring_damper.flange_a, slide.support)
+  connect(spring_damper.flange_b, slide.axis)
+  stroke = slide.s
+  dissipation = spring_damper.lossPower
+end
+
+"""
+Roll decay from 10° with a 100 t tuned mass damper 15 m above the roll
+centre (mass ratio about 0.07): compare the decay with `RollDecayTransient`,
+whose hull damping ratio is 0.047. The damper mass travels a few metres at
+the first swings; `tmd.stroke` and `tmd.dissipation` show it working.
+"""
+test component RollDecayTMD
+  parameter heel0_deg::Real = 10
+  world = MultibodyComponents.World(n = [0, 0, -1], g = 9.80665, render = false, nominal_length = 100)
+  ship = ShipBody(ini_Heel = heel0_deg * π / 180)
+  zrp = HydrodynamicZRP()
+  hydro = HydrodynamicXYY()
+  tmd = RollTunedMassDamper()
+relations
+  connect(ship.frame_a, zrp.frame_a, hydro.frame_a, tmd.frame_a)
+  connect(ship.Draft, zrp.MeanDraft)
+  connect(ship.Draft, hydro.MeanDraft)
+  connect(ship.Displacement, zrp.Displacement)
+  connect(ship.Displacement, hydro.Displacement)
+  hydro.Current_x = 0
+  hydro.Current_y = 0
+end
+
+analysis RollDecayTMDTransient
+  extends TransientAnalysis(stop = 120.0)
+  model = RollDecayTMD()
+end

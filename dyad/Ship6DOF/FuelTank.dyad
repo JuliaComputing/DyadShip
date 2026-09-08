@@ -1,0 +1,73 @@
+"""
+Fuel (or any consumable liquid) tank as a `VariableMass` on the hull.
+
+The stored mass integrates `-Fuel_rate` (a positive rate burns fuel, a
+negative rate bunkers it) from `m0`, and the liquid sits at half its height
+above the tank bottom `r_tank` in the ship frame, so burning or loading fuel
+moves the ship's centre of gravity and changes its draft, trim and inertia
+through the multibody hull. Drive `Fuel_rate` from a propeller shaft power
+and a specific fuel consumption, or from a diesel engine's fuel output.
+"""
+component FuelTank
+  "Hull frame"
+  frame_a = Frame3D()
+  "Fuel mass rate out of the tank [kg/s]; negative when bunkering"
+  Fuel_rate = RealInput()
+  "Fuel mass [kg]"
+  mass = RealOutput()
+  "Fill fraction of the tank volume"
+  fill_fraction = RealOutput()
+  "Tank bottom centre in the ship frame [x fwd, y port, z up]"
+  parameter r_tank::Length[3] = [20, 0, 1]
+  "Initial fuel mass"
+  parameter m0::Mass = 200000
+  "Fuel density [kg/m³]"
+  parameter rho::Density = 900
+  "Tank footprint [m²]"
+  parameter A_tank::Area = 100
+  "Tank height [m]"
+  parameter H::Length = 4
+  mount = MultibodyComponents.FixedTranslation(r = r_tank, render = false)
+  liquid = VariableMass()
+  variable m::Mass
+relations
+  initial m = m0
+  der(m) = -Fuel_rate
+  connect(frame_a, mount.frame_a)
+  connect(mount.frame_b, liquid.frame_a)
+  mass = m
+  fill_fraction = m / (rho * A_tank * H)
+  liquid.m = m
+  liquid.z_cm = 0.5 * m / (rho * A_tank)
+end
+
+"""
+Bunkering at rest: 300 t of fuel are pumped into a forward tank (bottom at
+80 m from the aft perpendicular, 2 m above the keel) over one hour while the
+ship floats freely. The draft rises and the ship trims by the bow as the
+mass comes aboard; `ship.Draft` and `ship.Trim` are the hydrostatic response
+of the hull, `fuel.mass` the fuel aboard.
+"""
+test component Bunkering
+  parameter fuel_mass::Mass = 300000
+  parameter t_fill::Time = 3600
+  world = MultibodyComponents.World(n = [0, 0, -1], g = 9.80665, render = false, nominal_length = 100)
+  ship = ShipBody(ini_Vel = [0, 0, 0])
+  hydro = HydrodynamicXYY()
+  zrp = HydrodynamicZRP()
+  fuel = FuelTank(r_tank = [80, 0, 2], m0 = 0, A_tank = 100, H = 4)
+relations
+  connect(ship.frame_a, hydro.frame_a, zrp.frame_a, fuel.frame_a)
+  connect(ship.Draft, hydro.MeanDraft)
+  connect(ship.Draft, zrp.MeanDraft)
+  connect(ship.Displacement, hydro.Displacement)
+  connect(ship.Displacement, zrp.Displacement)
+  hydro.Current_x = 0
+  hydro.Current_y = 0
+  fuel.Fuel_rate = ifelse(time < t_fill, -fuel_mass / t_fill, 0)
+end
+
+analysis BunkeringTransient
+  extends TransientAnalysis(stop = 5400.0)
+  model = Bunkering()
+end

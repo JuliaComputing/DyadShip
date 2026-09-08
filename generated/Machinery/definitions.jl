@@ -22,6 +22,7 @@ import DyadData
 import DyadInterface
 import ElectricalComponents
 import HVACComponents
+import IncompressibleFlowComponents
 import MultibodyComponents
 import RotationalComponents
 import ThermalComponents
