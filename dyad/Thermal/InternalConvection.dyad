@@ -1,0 +1,71 @@
+"""
+Natural-convection film coefficient on a room-side wall, floor or ceiling surface.
+
+Ported from `ShipSIM.Components.Others.HeatTransfer.ConvectionFactors.InternalConvection`.
+The building-services simplification of natural convection on an internal surface:
+
+```math
+h_i = K \\, |\\Delta T|^{1/3}
+```
+
+with `K` depending on the surface orientation and on which way the heat flows, because a
+horizontal surface either drives a plume or suppresses one:
+
+| `wall_type` | surface colder than air | surface warmer than air |
+|---|---|---|
+| `Floor` | 0.76 (stable, stratified) | 1.51 (plume rises off the floor) |
+| `Ceil` | 1.51 (cold ceiling sheds a plume) | 0.76 (stable) |
+| `Wall` | 1.3 | 1.3 |
+
+The orientation is a `structural parameter`, so it is fixed per instance and the two
+horizontal cases cost nothing at run time; only the direction of the heat flow is
+switched continuously.
+
+Deviation from upstream, numerical: upstream writes `hi = 0` for `|ΔT| <= eps` and
+`hi = K·|ΔT|^(1/3)` otherwise, and its own source comments that "this equation produces
+initialization failures" — the cube root has an infinite derivative at `ΔT = 0`, which is
+exactly where a thermal model is usually initialized. This port uses the smooth
+
+```math
+h_i = K \\left(\\Delta T^2 + \\delta^2\\right)^{1/6}
+```
+
+which matches `K·|ΔT|^(1/3)` to within a part in `(δ/ΔT)²` once `|ΔT| >> δ`, has a bounded
+derivative everywhere, and tends to `K·δ^(1/3)` rather than 0 at equal temperatures.
+
+`δ` defaults to 0.1 K, which puts that floor at about 0.6 W/(m²·K). Smaller values are
+not more accurate, only more brittle: a tenth of a kelvin across a bulkhead is below what
+the correlation resolves, and driving the floor to zero leaves the surface effectively
+insulated from the air at the moment a model is usually initialised — which is what makes
+a compartment's initialisation solve fail to converge.
+"""
+enum WallType =
+  | Floor
+  | Ceil
+  | Wall
+
+component InternalConvection
+  extends ConvectionBaseClass
+  "Wall surface area [m²]"
+  parameter Surf::Area
+  "Surface orientation (Floor | Ceil | Wall)"
+  structural parameter wall_type::WallType = WallType.Wall()
+  "Temperature-difference scale below which the cube root is rounded off [K]"
+  parameter dT_eps::Real = 0.1
+
+  "Orientation and flow-direction coefficient [W/(m²·K^(4/3))]"
+  variable K::Real
+relations
+  A = Surf
+
+  switch wall_type
+  case Floor
+    K = ifelse(ΔT <= 0, 0.76, 1.51)
+  case Ceil
+    K = ifelse(ΔT <= 0, 1.51, 0.76)
+  case Wall
+    K = 1.3
+  end
+
+  h = K * (ΔT ^ 2 + dT_eps ^ 2) ^ (1 / 6)
+end

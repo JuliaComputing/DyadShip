@@ -1,0 +1,90 @@
+"""
+Wind-driven convection film coefficient on an external wall surface.
+
+Ported from `ShipSIM.Components.Others.HeatTransfer.ConvectionFactors.ExternalConvection`.
+Nusselt–Jürges, with the windward/leeward correction the building-services literature
+applies to it:
+
+```math
+h_e = W \\left(7.13 \\, u^{0.78} + 5.35 \\, e^{-0.6 u}\\right)
+\\qquad W = \\begin{cases} 1 & \\theta \\le 100° \\\\ 0.5 & \\theta > 100° \\end{cases}
+```
+
+where `u` is the wind speed and `θ` the angle between the direction the wind travels and
+the inward surface normal `-Norm` — so `θ` near 0 is wind blowing square onto the
+surface, and a surface in the lee sees half the coefficient.
+
+`Norm` is the outward surface normal, `{0, -1, 0}` (due south, in the x = east,
+y = north, z = up world frame) by default. The wind vector follows the convention the
+rest of the port uses, pointing the way the wind travels: `Environment` and
+`VariableEnvironment` give a direction the wind comes *from*, so a wind vector built from
+them is `u · {-sin(dir), -cos(dir), 0}`. It arrives as three scalar inputs, as the other
+vector-valued components here do (`IrradiationOnPlane`); Dyad has no array connectors.
+
+Deviations from upstream, both numerical:
+
+- The windward test compares cosines rather than angles, and the angle itself is not
+  computed. `acos` is monotone decreasing, so `θ > 100°` and `cos θ < cos 100°` select the
+  same surfaces; but `acos` has an infinite derivative at ±1, which is exactly the common
+  case of a wind blowing square onto a wall. `cos_theta` is the diagnostic instead.
+- The wind speed is the regularised magnitude `sqrt(|u|² + u_reg²)`, and everything —
+  the 0.78 power, the exponential and the direction cosine — is built on that one
+  quantity. Written literally the component has two singularities at rest, and a model
+  whose wind *passes through* zero hits both. A ship leaving harbour does exactly that.
+
+  `sqrt(u_x² + u_y² + u_z²)` has no gradient at the origin: `∂|u|/∂u_y` is `u_y/|u|`,
+  which is `0/0` when the wind is exactly zero, so the Jacobian picks up a NaN at `t = 0`.
+  And `|u|^0.78` has derivative `0.78|u|^(-0.22)`, which a `max(|u|, tiny)` floor does not
+  bound — it jumps to about 2400 W/(m²·K) per m/s at `tiny = 1e-12` the instant the wind
+  moves. Either is enough to drive the integrator's step below floating-point epsilon at
+  `t = 0` once the coefficient feeds a wall face with no capacitance, as it does in a
+  `ShipCompartment`; the model is reported as unstable with no other clue. A *steady* wind
+  of any speed, zero included, hides both, because nothing is differentiated with respect
+  to it.
+
+  The cosine is separately `0/0` at rest; the same regularised magnitude makes it 0 there,
+  so the surface reads as windward (`W = 1`) — which is what upstream's
+  `angle_btw_vectors` returns for a zero-length vector.
+
+  The cost is 0.1 % on the still-air coefficient: 5.355 rather than 5.350 W/(m²·K). Above
+  0.01 m/s the regularisation is below one part in 10⁴.
+"""
+component ExternalConvection
+  extends ConvectionBaseClass
+  "Wind vector, east component — points the way the wind travels [m/s]"
+  WindVector_x = RealInput()
+  "Wind vector, north component [m/s]"
+  WindVector_y = RealInput()
+  "Wind vector, up component [m/s]"
+  WindVector_z = RealInput()
+
+  "Wall surface area [m²]"
+  parameter Surf::Area
+  "Outward surface normal, pointing away from the wall"
+  parameter Norm::Real[3] = [0, -1, 0]
+
+  "Regularisation speed: smooths the 0.78 power and the direction cosine at rest [m/s]"
+  parameter u_reg::Real = 1e-4
+
+  "cos 100°, the windward/leeward threshold"
+  final parameter cos_theta_max::Real = -0.17364817766693041
+  final parameter norm_len::Real = sqrt(Norm[1] ^ 2 + Norm[2] ^ 2 + Norm[3] ^ 2)
+
+  "Wind speed, regularised by u_reg so it is differentiable at rest [m/s]"
+  variable WindSpeed::Real
+  "Cosine of the angle between the wind direction and the inward surface normal"
+  variable cos_theta::Real
+  "Windward/leeward factor"
+  variable W::Real
+relations
+  A = Surf
+
+  WindSpeed = sqrt(WindVector_x ^ 2 + WindVector_y ^ 2 + WindVector_z ^ 2 + u_reg ^ 2)
+
+  cos_theta = -(WindVector_x * Norm[1] + WindVector_y * Norm[2] + WindVector_z * Norm[3])
+              / (WindSpeed * norm_len)
+
+  W = ifelse(cos_theta < cos_theta_max, 0.5, 1)
+
+  h = W * (7.13 * WindSpeed ^ 0.78 + 5.35 * exp(-0.6 * WindSpeed))
+end

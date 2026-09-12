@@ -1,0 +1,67 @@
+"""
+Bank of `N` randomly-scheduled consumers and their total electrical load.
+
+The ship's electrical power load analysis (EPLA) that `ShipSIM.MiscSamples.Balance` and
+`Examples.Electrical.Consumers` perform: a list of consumers, each with its own nominal
+power and its own average number of starts per hour, switching independently, summed into
+one bus load. Upstream instantiates 177 `OnOffConsumer`s by hand; this is the same thing
+parameterised by arrays, so the consumer list is data rather than model text.
+
+Each consumer gets its own seed — `seed_base + i` — so they switch independently. With one
+seed they would all switch together, which is the mistake the upstream sample avoids by
+giving its consumers seeds in groups.
+
+Outputs are the instantaneous bus load `y`, its running mean `average` (what an EPLA is
+usually asked for) and `running`, the number of consumers on at that instant. `running`
+counts each consumer's switched state rather than its scheduler's output, because the
+latter comes through a `ZeroOrderHold` and does not read back from a solution — see
+`OnOffConsumer`.
+"""
+component ElectricalLoad
+  "Total instantaneous load [W]"
+  y = RealOutput()
+  "Load averaged over the run so far [W]"
+  average = RealOutput()
+  "Number of consumers running"
+  running = RealOutput()
+
+  "Number of consumers"
+  structural parameter N::Integer = 6
+  "Sampling period of the schedulers [s]"
+  structural parameter dt::Real = 10.0
+  "First seed; consumer i uses seed_base + i"
+  structural parameter seed_base::Integer = 0
+
+  "Nominal power of each consumer [W]"
+  parameter NominalPower::Real[N]
+  "Mean starts per hour of each consumer"
+  parameter StartsHour::Real[N]
+  "Fraction of each period that each consumer runs"
+  parameter duty::Real[N]
+  "Load factor applied to every consumer's nominal power"
+  parameter Kr::Real = 0.85
+  "Start-up ramp of every consumer [s]"
+  parameter StartTime::Real = 5
+
+  scheds = [RandomStart(dt = dt, seed = seed_base + i, StartsHour = StartsHour[i],
+                        duty = duty[i], t_first = 0) for i in 1:N]
+  loads = [OnOffConsumer(NominalPower = NominalPower[i], Kr = Kr, StartTime = StartTime,
+                         CycleAmplitude = 0) for i in 1:N]
+  integrator = BlockComponents.Continuous.Integrator(k = 1)
+  contclock = BlockComponents.Sources.ContinuousClock()
+
+  "Power drawn by each consumer [W]"
+  variable p::Real[N]
+  "Switched state of each consumer, behind its switching lag"
+  variable w::Real[N]
+relations
+  for i in 1:N
+    connect(scheds[i].Work, loads[i].WorkSignal)
+    p[i] = loads[i].y
+    w[i] = loads[i].on_state
+  end
+  y = sum(p)
+  running = sum(w)
+  integrator.u = y
+  average = ifelse(contclock.y > 1e-9, integrator.y / contclock.y, 0)
+end

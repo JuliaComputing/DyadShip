@@ -1,0 +1,170 @@
+"""
+Environmental boundary for heat-transfer models: sun, sky, air and wind from one place.
+
+Port of `ShipSIM.Components.Others.EnvironmentHeatTransfer`, the component that turns a
+site's weather into everything a wall model needs. Upstream reads five data tables from
+files (irradiance, air temperature, humidity, wind speed, wind direction); this port takes
+them as real inputs, as `VariableEnvironment` does for the manoeuvring side, so the caller
+can feed them from `TemperatureDataset`, a `BlockComponents` table, or anything else.
+
+What it derives:
+
+- **Sun position** from the ported `SolarIrradiation`: altitude and the sun-ray vector,
+  passed through so `IrradiationOnPlane` and `SunScreen` can be driven from here.
+- **Cloud ratio** from the shortfall of measured irradiance against clear sky,
+  `1 - G_meas / G_clear`, averaged over `T_cloud` and held through the night. Upstream
+  runs a `Modelica.Blocks.Math.Mean(f = 1/1800)` and latches `pre(CloudMean.y)` in a
+  `when solarIrradiation.IsDay == false`. Here the mean is a
+  `DiscreteComponents.MovingAverageFilter` and the latch a clocked `CloudLatch`, both on
+  one `PeriodicClock` — the hold is the same thing said forwards: follow the mean while
+  the sun is up, keep the last daytime value while it is down.
+- **Sky temperature** from the clear-sky emissivity, Nahon's form as upstream:
+  ```math
+  \\varepsilon_{sky} = \\left(0.82 - 0.25 \\cdot 10^{-0.0945 e}\\right)\\left(1 + 0.21 c^{2.5}\\right)
+  \\qquad T_{sky} = T_{air} \\, \\varepsilon_{sky}^{1/4}
+  ```
+  with `e` the vapour pressure in hPa and `c` the cloud ratio.
+- **Wind vector** in world axes from speed and direction, `u · {-sin θ, -cos θ, 0}`, so a
+  direction the wind comes *from* becomes the direction it travels — the convention
+  `ExternalConvection` and `ConvRadSunWall` expect.
+- **Dew point** by the Magnus formula, the same one `MoistAir.DewTemperature` uses.
+
+`Air_Temp` and `Sky_Temp` are heat ports for a wall's convective and radiative sides.
+
+Deviation from upstream: the dew point is Magnus rather than upstream's
+`T - (100 - RH·100)/5`, which upstream itself `assert`s is only valid above 50 % RH. The
+Magnus form has no such restriction and the two agree to a few tenths of a kelvin where
+the linear one is valid.
+"""
+component CloudLatch@[input clk extends Discrete]
+  "Sampled running mean of the cloud ratio"
+  mean = RealInput@[clk]()
+  "Sampled day flag, 1 while the sun is above the horizon"
+  is_day = RealInput@[clk]()
+  "Cloud ratio: 0 = clear, 1 = overcast"
+  cloud = RealOutput@[clk]()
+relations
+  cloud@clk = ifelse(is_day@clk > 0.5, mean@clk, cloud@(clk-1))
+  initial cloud@(clk-1) = 0
+end
+
+component EnvironmentHeatTransfer
+  "Measured global horizontal irradiance [W/m²]"
+  G_meas = RealInput()
+  "Air temperature [K]"
+  T_air = RealInput()
+  "Relative humidity [0-1]"
+  RH = RealInput()
+  "Wind speed [m/s]"
+  WindSpeed = RealInput()
+  "Direction the wind comes from [deg], 0 = north, 90 = east"
+  WindDir = RealInput()
+
+  "Air-side heat port, at the air temperature"
+  Air_Temp = HeatPort()
+  "Sky-side heat port, at the effective sky temperature"
+  Sky_Temp = HeatPort()
+
+  "Solar altitude above the horizon [deg]"
+  SunHeight = RealOutput()
+  "Sun ray direction, east component, irradiance as modulus [W/m²]"
+  SunVector_x = RealOutput()
+  "Sun ray direction, north component [W/m²]"
+  SunVector_y = RealOutput()
+  "Sun ray direction, up component [W/m²]"
+  SunVector_z = RealOutput()
+  "Wind vector, east component — the way the wind travels [m/s]"
+  WindVector_x = RealOutput()
+  "Wind vector, north component [m/s]"
+  WindVector_y = RealOutput()
+  "Wind vector, up component [m/s]"
+  WindVector_z = RealOutput()
+  "Cloud ratio: 0 = clear sky, 1 = full cover"
+  CloudRatio = RealOutput()
+  "Effective sky temperature [K]"
+  T_sky = RealOutput()
+  "Dew-point temperature [K]"
+  Tdew = RealOutput()
+
+  parameter latitude::Angle = 0.7579392485634024
+  parameter longitude::Angle = -0.1438785943756596
+  parameter time_zone::Real = 1
+  parameter day_of_year::Real = 172
+  "Clear-sky reference irradiance [W/m²]"
+  parameter irradiance_ref::Real = 1000
+  "Clear-sky irradiance below which the cover cannot be measured [W/m²]"
+  parameter G_min::Real = 50
+  "Sampling period of the cloud logic [s]"
+  structural parameter dt::Real = 60.0
+  "Number of samples the cloud ratio is averaged over; dt · N_avg is the window"
+  structural parameter N_avg::Integer = 30
+
+  sun = SolarIrradiation(latitude = latitude, longitude = longitude, time_zone = time_zone,
+                         day_of_year = day_of_year, irradiance_ref = irradiance_ref)
+  clock = DiscreteComponents.PeriodicClock(dt = dt)
+  sampler_ratio = DiscreteComponents.Sampler()
+  sampler_day = DiscreteComponents.Sampler()
+  mean = DiscreteComponents.MovingAverageFilter(N = N_avg)
+  latch = CloudLatch()
+  hold = DiscreteComponents.ZeroOrderHold(initial_condition = 0)
+  air_src = ThermalComponents.Sources.PrescribedTemperature()
+  sky_src = ThermalComponents.Sources.PrescribedTemperature()
+
+  "Clear-sky irradiance on the horizontal [W/m²]"
+  variable G_clear::Real
+  "Instantaneous cloud ratio before averaging"
+  variable cloud_raw::Real
+  "1 while there is enough sun to measure the cover against"
+  variable measurable::Real
+  "Vapour pressure [hPa]"
+  variable Vp::Real
+  "Saturation vapour pressure [hPa]"
+  variable Vp_sat::Real
+  "Clear-sky emissivity"
+  variable e_sky::Real
+  "Wind direction in radians"
+  variable dir_rad::Real
+  "One-tick lag of the held cloud ratio; a state, so it reads back from a solution"
+  variable cloud_smooth::Real
+relations
+  SunHeight = sun.SunHeight
+  SunVector_x = sun.SunVector_x
+  SunVector_y = sun.SunVector_y
+  SunVector_z = sun.SunVector_z
+
+  # Cloud ratio: the shortfall of measured irradiance against clear sky, averaged and
+  # held overnight.
+  G_clear = sun.IrradianceOnPanel
+  cloud_raw = clamp(1 - G_meas / max(G_clear, G_min), 0, 1)
+  measurable = ifelse(G_clear > G_min, 1, 0)
+  sampler_ratio.u = cloud_raw
+  sampler_day.u = measurable
+  connect(sampler_ratio.y, mean.u, clock.y)
+  connect(sampler_day.y, latch.is_day)
+  connect(mean.y, latch.mean)
+  connect(latch.cloud, hold.u)
+  initial cloud_smooth = 0
+  der(cloud_smooth) = (hold.y - cloud_smooth) / dt
+  CloudRatio = cloud_smooth
+
+  # Sky temperature from the clear-sky emissivity (Nahon), vapour pressure in hPa.
+  Vp_sat = 6.1121 * exp((18.678 - (T_air - 273.15) / 234.4)
+                        * ((T_air - 273.15) / (257.14 + (T_air - 273.15))))
+  Vp = RH * Vp_sat
+  e_sky = (0.82 - 0.25 * 10 ^ (-0.0945 * Vp)) * (1 + 0.21 * max(CloudRatio, 0) ^ 2.5)
+  T_sky = T_air * e_sky ^ (1 / 4)
+
+  connect(T_air, air_src.T)
+  connect(air_src.port, Air_Temp)
+  sky_src.T = T_sky
+  connect(sky_src.port, Sky_Temp)
+
+  # Wind: a direction the wind comes from becomes the direction it travels.
+  dir_rad = WindDir * π / 180
+  WindVector_x = -WindSpeed * sin(dir_rad)
+  WindVector_y = -WindSpeed * cos(dir_rad)
+  WindVector_z = 0
+
+  # Magnus dew point on the vapour pressure.
+  Tdew = 273.15 + (241.88 * log(Vp / 6.1078)) / (17.558 - log(Vp / 6.1078))
+end

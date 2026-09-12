@@ -1,0 +1,152 @@
+"""
+Ship compartment: a moist-air space behind weather-exposed bulkheads, with both film
+coefficients computed rather than assumed.
+
+This is `HVACComponents.Components.MultiportLumpedRoom` with its two fixed-`U`
+`ThermalConductor`s replaced by the convection factors in this package: `InternalConvection`
+on the room side, which knows whether a surface is a deck, a deckhead or a bulkhead and
+which way the heat is flowing, and `ExternalConvection` on the weather side, which reads
+the wind.
+
+That substitution is the point. A building's outside film coefficient is near enough
+constant to be a parameter; a ship's is not. A deckhouse alongside in still air sees about
+5 W/(m²·K), and the same deckhouse steaming at 8 m/s into a 12 m/s headwind sees about
+75 — the hull carries its own weather with it. Feeding `ApparentSpeedXY`'s output into
+`WindVector_*` makes the compartment's heat loss follow the ship's speed and heading.
+
+Structure, per surface `i` of `N_surf`:
+
+```
+volume  ─ inner[i] ─ wall.heatPort_a[i] ═ wall.heatPort_b[i] ─ outer[i] ─ heatPorts[i]
+(air)     (natural)   (inner face)        (outer face)         (wind)     (ambient)
+```
+
+The wall is `ThreeTempWall1D`: `N_surf` independent parallel surfaces, each resolved
+through its thickness as an inner face, an outer face and a mid-plane carrying the
+thermal mass. The air volume is a `MultiportVolume` on moist-air media, so the compartment
+tracks humidity as well as temperature — a compartment's dew point is what decides whether
+its bulkheads sweat.
+
+`N_flow` fluid ports take HVAC ducts. `QSensPort` and `QLatPort` take sensible and latent
+gains (crew, galley, machinery) as heat flows.
+
+Notes on the library components underneath:
+
+- `ThreeTempWall1D.m_wall` is documented as "the total wall mass shared by all N surfaces",
+  but each surface's energy balance divides by the whole of `cp_wall * m_wall`, so N
+  surfaces carry N times that mass. This component takes `rho_wall` and computes the
+  per-surface mass `rho_wall * d_wall * A_wall`, which is what makes the wall's thermal
+  mass come out right.
+- All `N_surf` surfaces share one area, orientation and construction, as they do in
+  `MultiportLumpedRoom`. A compartment with genuinely different surfaces — a sunlit
+  deckhead over insulated bulkheads — wants one instance per group, joined through their
+  fluid ports.
+- The weather side takes plain ambient air. For a surface that also sees the sun and the
+  sky, connect `ConvRadSunWall` to `heatPorts[i]` instead of an ambient boundary; it
+  carries its own `ExternalConvection`, so set this component's surfaces to the shaded
+  ones.
+"""
+component ShipCompartment
+  "Number of moist-air fluid ports (HVAC ducts)"
+  structural parameter N_flow::Integer
+  "Number of weather-exposed surfaces"
+  structural parameter N_surf::Integer
+
+  "Compartment air volume [m³]"
+  parameter V_tot::Real
+  "Moist-air medium data object"
+  parameter medium_data::HVACComponents.MediaModels.AbstractMoistAirMedium = HVACComponents.moistair
+  "Initial air pressure [Pa]"
+  parameter p_start::Pressure = 101325
+  "Initial air temperature [K]"
+  parameter T_start::Temperature = 293.15
+  "Initial water-vapour mass fraction [-]"
+  parameter Xi_start::Real = 0.007
+
+  "Thermal conductivity of the bulkhead construction [W/(m·K)]"
+  parameter lambda_wall::ThermalConductivity = 0.045
+  "Specific heat capacity of the bulkhead construction [J/(kg·K)]"
+  parameter cp_wall::SpecificHeatCapacity = 840
+  "Density of the bulkhead construction [kg/m³]"
+  parameter rho_wall::Density = 120
+  "Bulkhead thickness [m]"
+  parameter d_wall::Length = 0.05
+  "Area of one surface [m²]"
+  parameter A_wall::Area
+  "Initial bulkhead temperature [K]"
+  parameter T_wall_start::Temperature = 293.15
+
+  "Orientation of the room-side surfaces, for the natural-convection coefficient"
+  structural parameter inner_wall_type::WallType = WallType.Wall()
+  "Outward normal of the weather-side surfaces"
+  parameter Norm::Real[3] = [0, -1, 0]
+
+  "Apparent wind over the surfaces, east component — points the way the wind travels [m/s]"
+  WindVector_x = RealInput()
+  "Apparent wind, north component [m/s]"
+  WindVector_y = RealInput()
+  "Apparent wind, up component [m/s]"
+  WindVector_z = RealInput()
+
+  "HVAC duct connections"
+  ports = [HVACComponents.MoistAirFluidPort() for i in 1:N_flow]
+  "Ambient air on the weather side of each surface"
+  heatPorts = [HeatPort() for i in 1:N_surf]
+  "Sensible gains into the compartment air"
+  QSensPort = HeatPort()
+  "Latent gains into the compartment air"
+  QLatPort = HeatPort()
+
+  volume = HVACComponents.Components.MultiportVolume(
+    N_ports = N_flow,
+    N_heat = N_surf + 1,
+    V_tot = V_tot,
+    medium_data = medium_data,
+    p_start = p_start,
+    T_start = T_start,
+    Xi_start = Xi_start
+  )
+
+  wall = HVACComponents.Components.ThreeTempWall1D(
+    N = N_surf,
+    lambda_wall = lambda_wall,
+    cp_wall = cp_wall,
+    d_wall = d_wall,
+    A_wall = A_wall,
+    m_wall = rho_wall * d_wall * A_wall,
+    T_start_inner = T_wall_start,
+    T_start_outer = T_wall_start
+  )
+
+  inner = [InternalConvection(Surf = A_wall, wall_type = inner_wall_type) for i in 1:N_surf]
+  outer = [ExternalConvection(Surf = A_wall, Norm = Norm) for i in 1:N_surf]
+
+  "Room-side film coefficient [W/(m²·K)]"
+  variable h_inner::CoefficientOfHeatTransfer
+  "Weather-side film coefficient [W/(m²·K)]"
+  variable h_outer::CoefficientOfHeatTransfer
+  "Compartment air temperature [K]"
+  variable T_air::Temperature
+relations
+  for i in 1:N_flow
+    connect(ports[i], volume.ports[i])
+  end
+
+  connect(QSensPort, volume.heatPorts[N_surf + 1])
+  connect(QLatPort, volume.QLatPort)
+
+  for i in 1:N_surf
+    connect(volume.heatPorts[i], inner[i].fluid)
+    connect(inner[i].solid, wall.heatPort_a[i])
+    connect(wall.heatPort_b[i], outer[i].solid)
+    connect(outer[i].fluid, heatPorts[i])
+    connect(WindVector_x, outer[i].WindVector_x)
+    connect(WindVector_y, outer[i].WindVector_y)
+    connect(WindVector_z, outer[i].WindVector_z)
+  end
+
+  # The surfaces are identical, so surface 1 reports for all of them.
+  h_inner = inner[1].h
+  h_outer = outer[1].h
+  T_air = volume.medium.T
+end

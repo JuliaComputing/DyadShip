@@ -1,0 +1,110 @@
+"""
+Convection film coefficient over a horizontal cylinder in cross flow — natural and
+forced, whichever dominates.
+
+Ported from `ShipSIM.Components.Others.HeatTransfer.ConvectionFactors.ConvectionHorizontalCylinder`.
+Fluid properties are parameters (defaults: air at about 300 K) and the free-stream speed
+`u_inf` is a real input, so the same element covers a still and a ventilated space.
+
+Natural convection is Churchill–Chu over the whole Rayleigh range:
+
+```math
+Nu_n = \\left(0.6 + \\frac{0.387 \\, Ra_D^{1/6}}{\\left(1 + (0.559/Pr)^{9/16}\\right)^{8/27}}\\right)^2
+```
+
+Forced convection switches on the Péclet and Reynolds numbers: Nakai–Okazaki below
+``Pe_D = 0.2``, otherwise Churchill–Bernstein, bare below ``Re_D = 4000``, with the
+``(1 + (Re_D/282000)^{1/2})`` factor over ``20000 < Re_D < 400000`` and the
+``(1 + (Re_D/282000)^{5/8})^{4/5}`` factor elsewhere. The two modes are combined as
+``h = \\max(Nu_f, Nu_n) \\, k / D``, as upstream.
+
+Upstream asserts (at warning level) that ``Ra_D \\ge 10^{-5}`` and ``Re_D < 10^7``, the
+ranges the two correlations are fitted over. Dyad has no assertion form, so those bounds
+are documented rather than checked: `Ra_D` and `Re_D` are variables, so an analysis can
+plot them against the range.
+
+Deviations from upstream, all numerical:
+
+- The Reynolds number uses `abs(u_inf)`. Upstream takes `u_inf` signed, so a negative
+  free-stream speed makes `Re_D^(1/2)` a NaN; the film coefficient depends on the speed
+  magnitude only.
+- The forced-convection branch is selected by `abs(u_inf) < u_min` rather than upstream's
+  `u_inf == 0`, an exact float comparison that a ramped input reaches only by luck.
+- `Re_D`, `Pe_D` and `Ra_D` are floored by `eps_num` wherever they appear under a
+  fractional power or a logarithm. `ifelse` evaluates both branches symbolically, so the
+  untaken branch has to stay finite: at rest the unfloored `log(Pe_D)` is `-Inf` and
+  `d(Ra_D^(1/6))/d(Ra_D)` is infinite at `ΔT = 0`, either of which poisons the Jacobian
+  whether or not that branch is the one in force.
+
+Upstream's kinematic viscosity parameter is `v`; it is `nu` here, `v` being too easily
+read as a velocity next to `u_inf`.
+"""
+component ConvectionHorizontalCylinder
+  extends ConvectionBaseClass
+  "Free-stream fluid velocity [m/s]"
+  u_inf = RealInput()
+
+  "Diameter of the cylinder [m]"
+  parameter D::Length
+  "Length of the cylinder [m]"
+  parameter L::Length
+
+  "Fluid thermal conductivity [W/(m·K)]"
+  parameter k::ThermalConductivity = 0.024
+  "Fluid kinematic viscosity [m²/s]"
+  parameter nu::Real = 1.562e-5
+  "Fluid density [kg/m³]"
+  parameter rho::Density = 1.184
+  "Fluid specific heat capacity [J/(kg·K)]"
+  parameter Cp::SpecificHeatCapacity = 1007
+  "Fluid thermal expansion coefficient [1/K]"
+  parameter beta::Real = 0.003354016
+
+  "Free-stream speed below which the flow counts as still"
+  parameter u_min::Real = 1e-8
+  "Floor applied to Re, Pe and Ra under fractional powers and logarithms"
+  parameter eps_num::Real = 1e-12
+
+  "Gravitational acceleration [m/s²]"
+  final parameter g_n::Real = 9.80665
+  "Fluid thermal diffusivity, k / (rho·Cp) [m²/s]"
+  final parameter alpha::Real = k / (rho * Cp)
+  "Prandtl number"
+  final parameter Pr::Real = nu / alpha
+
+  "Reynolds number"
+  variable Re_D::Real
+  "Péclet number"
+  variable Pe_D::Real
+  "Rayleigh number"
+  variable Ra_D::Real
+  "Nusselt number, forced convection"
+  variable Nu_D_f::Real
+  "Nusselt number, natural convection"
+  variable Nu_D_n::Real
+  variable Nu_cb::Real
+relations
+  A = π * D * L
+
+  Re_D = abs(u_inf) * D / nu
+  Pe_D = Re_D * Pr
+  Ra_D = (g_n * beta * abs(ΔT) * D ^ 3) / (nu * alpha)
+
+  Nu_cb = 0.3 + (0.62 * sqrt(max(Re_D, eps_num)) * Pr ^ (1 / 3)) / ((1 + (0.4 / Pr) ^ (2 / 3)) ^ (1 / 4))
+
+  Nu_D_f = ifelse(abs(u_inf) < u_min,
+                  0,
+                  ifelse(Pe_D < 0.2,
+                         1 / (0.8237 - 0.5 * log(max(Pe_D, eps_num))),
+                         ifelse(Re_D < 4000,
+                                Nu_cb,
+                                ifelse(Re_D < 20000,
+                                       Nu_cb * (1 + (max(Re_D, eps_num) / 282000) ^ (5 / 8)) ^ (4 / 5),
+                                       ifelse(Re_D < 400000,
+                                              Nu_cb * (1 + sqrt(max(Re_D, eps_num) / 282000)),
+                                              Nu_cb * (1 + (max(Re_D, eps_num) / 282000) ^ (5 / 8)) ^ (4 / 5))))))
+
+  Nu_D_n = (0.6 + 0.387 * max(Ra_D, eps_num) ^ (1 / 6) / (1 + (0.559 / Pr) ^ (9 / 16)) ^ (8 / 27)) ^ 2
+
+  h = max(Nu_D_f, Nu_D_n) * (k / D)
+end

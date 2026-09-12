@@ -7,7 +7,7 @@
 import Moshi as __Ext__Moshi
 
 @doc Markdown.doc"""
-   OnOffConsumer(; name, NominalPower, Kr, StartTime, CycleAmplitude, CycleFrequency)
+   OnOffConsumer(; name, NominalPower, Kr, StartTime, CycleAmplitude, CycleFrequency, T_switch)
 
 On-off electrical consumer with start-up + cycle power signatures.
 
@@ -27,9 +27,9 @@ oscillates around 1.0 at `CycleAmplitude` and `CycleFrequency`. Same conceptual 
 output = NominalPower · Kr · cycle_factor(time_since_on) when on, 0 when off.
 
 Limitations vs upstream:
-- No randomness in the on/off pattern.
 - No optional `Integrators` sub-component (`getIntegrators = true`); the user can
-  feed `y` into a `BlockComponents.Continuous.Integrator` externally.
+  feed `y` into a `BlockComponents.Continuous.Integrator` externally, which is what
+  `Machinery.ElectricalLoad` does for the bus average.
 - A precise replay of the upstream's table-based start signature would need the user
   to provide their own external time-shaped signal multiplied by `WorkSignal`.
 
@@ -42,6 +42,7 @@ Limitations vs upstream:
 | `StartTime`         | Start-up rise time [s] — the unit ramps from 0 to nominal over this period after `Work` flips on.                         | --  |   5 |
 | `CycleAmplitude`         | Steady-cycle small-amplitude variation around nominal.                         | --  |   0.1 |
 | `CycleFrequency`         | Steady-cycle frequency [Hz].                         | --  |   1.0 |
+| `T_switch`         | Switching lag applied to `WorkSignal` [s].                         | --  |   1.0 |
 
 ## Connectors
 
@@ -54,8 +55,9 @@ Limitations vs upstream:
 | ------------ | ----------------------------------- | ------ |
 | `time_on`         |                          | --  |
 | `shape`         |                          | --  |
+| `on_state`         |                          | --  |
 """
-@component function OnOffConsumer(; name = nothing, NominalPower=Float64(1000), Kr=0.85, StartTime=Float64(5), CycleAmplitude=0.1, CycleFrequency=Float64(1.0), kwargs...)
+@component function OnOffConsumer(; name = nothing, NominalPower=Float64(1000), Kr=0.85, StartTime=Float64(5), CycleAmplitude=0.1, CycleFrequency=Float64(1.0), T_switch=Float64(1.0), kwargs...)
   isnothing(name) && throw(ArgumentError("""
     The `name` keyword must be provided. Please consider using the `@named` macro,
     like so:
@@ -101,6 +103,9 @@ Limitations vs upstream:
   __local__CycleFrequency = CycleFrequency
   append!(__params, @parameters (CycleFrequency::Real), [description = "Steady-cycle frequency [Hz]."])
   __initial_conditions[CycleFrequency] = __local__CycleFrequency
+  __local__T_switch = T_switch
+  append!(__params, @parameters (T_switch::Real), [description = "Switching lag applied to `WorkSignal` [s]."])
+  __initial_conditions[T_switch] = __local__T_switch
 
   ### Final Parameters (assignments)
 
@@ -111,6 +116,7 @@ Limitations vs upstream:
   ### Variables (declarations)
   append!(__vars, @variables (time_on(t)::Real))
   append!(__vars, @variables (shape(t)::Real))
+  append!(__vars, @variables (on_state(t)::Real))
 
   ### Variables (assignments)
   __ovr_time_on = pop!(__overrides, "time_on", nothing); isnothing(__ovr_time_on) || push!(__eqs, time_on ~ __ovr_time_on)
@@ -119,6 +125,9 @@ Limitations vs upstream:
   __ovr_shape = pop!(__overrides, "shape", nothing); isnothing(__ovr_shape) || push!(__eqs, shape ~ __ovr_shape)
   __ovr_shape__initial = pop!(__overrides, "shape__initial", nothing); isnothing(__ovr_shape__initial) || (__initial_conditions[shape] = __ovr_shape__initial)
   __ovr_shape__guess = pop!(__overrides, "shape__guess", nothing)
+  __ovr_on_state = pop!(__overrides, "on_state", nothing); isnothing(__ovr_on_state) || push!(__eqs, on_state ~ __ovr_on_state)
+  __ovr_on_state__initial = pop!(__overrides, "on_state__initial", nothing); isnothing(__ovr_on_state__initial) || (__initial_conditions[on_state] = __ovr_on_state__initial)
+  __ovr_on_state__guess = pop!(__overrides, "on_state__guess", nothing)
 
   ### Constants
   __constants = Any[]
@@ -131,17 +140,20 @@ Limitations vs upstream:
   ### Guesses
   isnothing(__ovr_time_on__guess) || (__guesses[time_on] = __ovr_time_on__guess)
   isnothing(__ovr_shape__guess) || (__guesses[shape] = __ovr_shape__guess)
+  isnothing(__ovr_on_state__guess) || (__guesses[on_state] = __ovr_on_state__guess)
 
   ### Initialization Equations
   push!(__initialization_eqs, time_on ~ 0)
+  push!(__initialization_eqs, on_state ~ 0)
 
   ### Assertions
   __assertions = []
 
   ### Equations
-  push!(__eqs, ModelingToolkit.D_nounits(time_on) ~ ifelse(WorkSignal > 0.5, 1, -time_on))
-  push!(__eqs, shape ~ ifelse(time_on < StartTime, time_on / StartTime, 1 + CycleAmplitude * sin(2 * π * CycleFrequency * (time_on - StartTime))))
-  push!(__eqs, y ~ WorkSignal * NominalPower * Kr * shape)
+  push!(__eqs, ModelingToolkit.D_nounits(on_state) ~ (WorkSignal - on_state) / T_switch)
+  push!(__eqs, ModelingToolkit.D_nounits(time_on) ~ ifelse(on_state > 0.5, 1, -time_on))
+  push!(__eqs, shape ~ ifelse(time_on < StartTime, max(time_on, 0) / StartTime, 1 + CycleAmplitude * sin(2 * π * CycleFrequency * (time_on - StartTime))))
+  push!(__eqs, y ~ on_state * NominalPower * Kr * shape)
 
   # Return completely constructed System
   return System(__eqs, t, __vars, __params; systems=__systems, initial_conditions=__initial_conditions, guesses=__guesses, name, initialization_eqs=__initialization_eqs, bindings=__bindings, assertions=__assertions)

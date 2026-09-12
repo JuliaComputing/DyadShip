@@ -205,8 +205,13 @@ component.
 end
 
 
+include("ElectricalLoad_definition.jl")
 include("EventPeakSamplerChirp_definition.jl")
 include("EventPeakSamplerTransient_definition.jl")
 include("EventPeakSampler_definition.jl")
 include("OnOffConsumer_definition.jl")
 include("PeakSampler_definition.jl")
+include("RandomStartLogic_definition.jl")
+include("RandomStart_definition.jl")
+include("ShipLoadBalanceTransient_definition.jl")
+include("ShipLoadBalance_definition.jl")

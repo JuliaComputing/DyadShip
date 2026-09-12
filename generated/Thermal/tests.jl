@@ -16,15 +16,28 @@ end
 
 
 @testset "`DyadShip.Thermal`" begin
+include("CloudLatch_test.jl")
+include("CompartmentStill_test.jl")
 include("ConvRadSunWall_test.jl")
+include("ConvectionHorizontalCylinder_test.jl")
+include("ConvectionSpeedSweep_test.jl")
 include("CylinderHeatup_test.jl")
 include("CylinderTransient_test.jl")
+include("DeckhouseAtSea_test.jl")
+include("EnvironmentHeatTransfer_test.jl")
+include("ExternalConvection_test.jl")
+include("InternalConvectionCrossover_test.jl")
+include("InternalConvection_test.jl")
 include("IrradiationOnPlane_test.jl")
+include("PlateForcedConvection_test.jl")
 include("PlateHeatup_test.jl")
 include("PlateTransient_test.jl")
+include("ShipCompartment_test.jl")
 include("SimpleAirExchanger_test.jl")
 include("SolarIrradiation_test.jl")
 include("SolarSweep_test.jl")
 include("SunScreen_test.jl")
+include("SunWallDay_test.jl")
 include("TemperatureDataset_test.jl")
+include("WeatherDay_test.jl")
 end

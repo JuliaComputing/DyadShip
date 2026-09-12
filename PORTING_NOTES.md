@@ -60,16 +60,33 @@ the pitch Euler angle is positive bow down. Wind and current directions are
 | (new) | `Ship6DOF.AntiHeelingCircuit`, `CentrifugalPump`, `TankLiquidMass` | pump/valve ballast transfer on `IncompressibleFlowComponents` |
 | `Machines.SimpleDieselEngine` | `Propulsion.SimpleDieselEngine` | tables inlined as `ifelse` |
 | `Machines.Crane`, `SubComponents.Cable` | `Ship6DOF.Crane`, `Ship6DOF.Cable` | 3D; cable break as a clocked latch (`CableBreakLatch`) |
-| `Electrical.OnOffConsumer` | `Machinery.OnOffConsumer` | driven by a work signal instead of a random schedule |
+| `Electrical.OnOffConsumer` | `Machinery.OnOffConsumer` | work signal behind a switching lag; the schedule comes from `RandomStart` |
+| `Electrical.Internal.RandomStart` | `Machinery.RandomStart` | the `when time >= pre(NextStep)` scheduler as clocked logic on `DiscreteComponents.UniformNoise`, seeded and reproducible |
+| `MiscSamples.Balance`, `Examples.Electrical.Consumers` | `Machinery.ElectricalLoad` + `ShipLoadBalanceTransient` | the EPLA: N consumers as parameter arrays rather than 177 hand-written instances, with the bus total, its running mean and the diversity factor |
+| `DataProcessing.RainflowCounter`, `FatigueCounter` | `DyadShip.rainflow_count`, `rainflow_matrix`, `miner_damage` (`src/Rainflow.jl`) | Julia post-processors over the turning points `Machinery.EventPeakSampler` emits; see below |
 | `DataProcessing.PeakSampler` | `Machinery.EventPeakSampler`, `Machinery.PeakSampler` | event-driven (`DiscreteComponents.ZeroCrossingClock`) and continuous peak-hold |
 | `Others.Solar.*`, `Others.HeatTransfer.*` | `Thermal.*` | see docstrings |
+| `Others.HeatTransfer.ConvectionFactors.*` | `Thermal.ConvectionHorizontalCylinder`, `PlateForcedConvection`, `InternalConvection`, `ExternalConvection` | all four on `Thermal.ConvectionBaseClass`, which extends `ThermalComponents.Interfaces.ConvectiveElement1D` |
+| `Others.Solar.ConvRadSunWall` | `Thermal.ConvRadSunWall` | composed like upstream: two `ThermalComponents.BodyRadiation` paths split by view factor, `ExternalConvection`, `IrradiationOnPlane`, `SunScreen` and two `PrescribedHeatFlow`s |
+| `Others.EnvironmentHeatTransfer` | `Thermal.EnvironmentHeatTransfer` | weather as real inputs instead of five file tables; cloud cover from the irradiance shortfall on a clocked moving average with a night latch, sky temperature, wind vector and Magnus dew point |
+| (new) | `Thermal.ShipCompartment` | moist-air compartment on `HVACComponents.MultiportVolume` + `ThreeTempWall1D`, with `InternalConvection` and `ExternalConvection` in place of the fixed `U_inner` / `U_outer` of `MultiportLumpedRoom` |
 | `Others.MoistAir.SourceMoistAir`, `DewTemperature` | `MoistAir.SourceMoistAir`, `MoistAir.DewTemperature` | on `HVACComponents` moist-air media and `MoistAirFluidPort` |
 
-Not ported: `RainflowCounter` / `FatigueCounter` (needs `algorithm` + `pre`;
-belongs in a Julia post-processor), `TriggerConsumer` / `StartGenerator`
-(event-driven schedules), `SunIrradianceMultibody`, `EnvironmentHeatTransfer`, `ConvectionFactors.*`,
+Not ported: `TriggerConsumer` / `StartGenerator` (variants of `RandomStart`, which is
+ported — they can be written the same way), `SunIrradianceMultibody`,
 `SubComponents.Ikeda` (partial roll-damping stub upstream), `VariableTranslation`
 (the 3D components apply forces at variable points algebraically instead).
+
+`RainflowCounter` and `FatigueCounter` are ported as Julia functions, not components.
+Upstream runs them inside the model on a `when u <> pre(u)` event with an `algorithm`
+section that walks two stacks with `while` loops. Dyad's clocked layer could express a
+bounded version — a fixed-size stack updated one-hot, one extraction per tick — but
+counting cycles is post-processing over a series of turning points, not a dynamic system:
+it has no state the rest of the model can see, it needs an unbounded stack to be exact,
+and clocked array state does not cross-compile (SynchToolkit #212), so a model carrying
+one could not be deployed. The model's job is to produce the turning points, which
+`Machinery.EventPeakSampler` does exactly — it clocks on the zero crossings of the
+signal's derivative — and `src/Rainflow.jl` consumes that series.
 
 ## Corrections relative to upstream (documented in the docstrings)
 
@@ -81,6 +98,15 @@ belongs in a Julia post-processor), `TriggerConsumer` / `StartGenerator`
 - `ShipWind` normalises the lateral force with `A_T`; the port uses `A_L`
   (Fujiwara's definition). The lateral force and yaw moment keep the upstream
   minus signs.
+- `Thermal.definitions.jl:sun_vector_world` returned the northward component of the
+  direction *to* the sun while negating the other two, so the sun stood in the northern
+  sky: a south-facing wall was lit at dawn and dusk and dark at noon. All three
+  components are now negated. Only `SunVector_y` was affected, and until
+  `ConvRadSunWall` was rebuilt nothing consumed it (`SolarIrradiation.IrradianceOnPanel`
+  uses the vertical component only), so no earlier result changes. The two
+  `SunWallDay` solstices are the regression check: in winter the south wall takes the
+  whole gain and the north wall none, in summer the north wall is lit at dawn and dusk
+  and the south wall only weakly at noon.
 - `Rudder`: the effective angle of attack is `α = δ - γ_R β_R`, so a drift
   angle reduces the effective rudder angle in a turn and a centred rudder
   produces the restoring fin force. Both the previous planar port (and, read
@@ -119,6 +145,16 @@ relay), and the `ZeroOrderHold` continuous output reads back as its final
 value through symbolic indexing of the solution, so post-process the clocked
 signal itself (`sol[m.path.relay.s]`, one entry per tick) or the physical
 response.
+
+That second caveat reaches further than it looks. It collapses not only the hold's own
+output but **everything algebraically derived from it**, because those are observed
+rather than integrated. An `ElectricalLoad` bank whose consumer powers were
+`WorkSignal * P * shape` read back as a flat line — every consumer that happened to be
+off at the end reporting zero for the whole run — while the model had integrated all six
+correctly. The fix in both places it bit was to put a state in the path: a switching lag
+in `OnOffConsumer`, a one-tick lag on `EnvironmentHeatTransfer`'s cloud ratio. Both are
+defensible physically, and both make the signal readable. Watch for this whenever a
+clocked signal feeds an algebraic chain you intend to plot.
 Installing it precompiles a Lustre toolchain (`Heptagon_jll`,
 `Clang_unified_jll`): use `JULIA_NUM_PRECOMPILE_TASKS=1` and a 12 GB cap.
 
@@ -135,9 +171,14 @@ Installing it precompiles a Lustre toolchain (`Heptagon_jll`,
   blocks; nothing there we lack.
 - `MultibodyComponents` mesh visualisers load STL/OBJ through `MeshIO`, not
   DXF; the upstream `Ship.dxf` hull would need converting.
-- `BuildingsHeatTransfer` (convection factors), `PrimitiveComponents` and
-  `TranslatedComponents` are pinned to older `DyadEcosystemDependencies` and
-  do not resolve on the 3.3.0 sysimage.
+- `BuildingsHeatTransfer`, `PrimitiveComponents` and `TranslatedComponents` are
+  pinned to older `DyadEcosystemDependencies` and do not resolve on the 3.3.0
+  sysimage. It was listed here as the blocker for the convection factors; it is
+  not one. Upstream's `ConvectionBaseClass` is
+  `ThermalComponents.Interfaces.ConvectiveElement1D` — same `solid` / `fluid`
+  ports, same `ΔT`, same sign convention — and the correlations themselves are
+  closed-form algebra, so `Thermal.ConvectionBaseClass` extends the library
+  interface and the four factors extend that.
 - Two further registries exist on GitHub (`JuliaComputing/DyadHVACRegistry`,
   `JuliaComputing/DyadThermoFluidRegistry`) and are not served by the JuliaHub
   package server: clone them into `~/.julia/registries/` and set
@@ -176,6 +217,37 @@ Installing it precompiles a Lustre toolchain (`Heptagon_jll`,
     each step, so the step size never grows beyond its initial 6e-7 s.
   - `MediaComponents` / `FluidComponents` (general media and distributed
     pipes) exist but are earlier-stage (`kernel = 3.3.0-rc4`, water only).
+
+## Component-library findings (September 2026)
+
+From building `Thermal.ShipCompartment` on `HVACComponents` 0.3.0 and `ThermalComponents`
+2.0.5:
+
+- **A `MultiportVolume` will not initialise when its moist-air fluid boundary is below
+  about 15 °C.** Minimal reproducer, no component of ours in it: a `MultiportVolume`
+  (N_ports = 2, N_heat = 1), a `Boundary_pTPhi` and a flow source, heat port on a
+  `FixedHeatFlow`. With the boundary and supply air at 20 °C it solves; at 10 °C and below
+  it returns `InitialFailure`, and so does `MultiportLumpedRoom` built the same way. It is
+  the *boundary* temperature that decides it, not the volume's start state (a volume
+  starting at 0 °C with 20 °C air is fine) and not the gap between them. The medium's own
+  property functions are healthy down to at least −5 °C — `massFraction_pTϕ`, `h_pTX`,
+  `d_pTX` and the `T_phX` round trip are all exact there — so this is in the assembled
+  DAE, not in the media. Workaround: preheat the ventilation supply, which is what a ship
+  in winter does anyway. Only fluid ports are affected; a weather-side `HeatPort` may be
+  any temperature, so `DeckhouseAtSeaAnalysis` still runs its 0 °C winter case.
+- **`ThreeTempWall1D.m_wall` and `OneTempWall1D.m_wall` are documented as "the total wall
+  mass shared by all N surfaces", but each surface's energy balance divides by the whole
+  of `cp_wall * m_wall`.** N surfaces therefore carry N times that mass. `ShipCompartment`
+  takes `rho_wall` and passes the per-surface mass.
+- **A film coefficient feeding an uncapacitated wall face has to be differentiable at
+  rest.** `ExternalConvection` computes the wind speed as `sqrt(|u|² + u_reg²)`, because
+  `sqrt(u_x² + u_y² + u_z²)` has no gradient at the origin (`0/0`) and `|u|^0.78` has an
+  unbounded one. Either puts a NaN or a 2400 W/(m²·K) per m/s entry in the Jacobian at
+  `t = 0`. Between two ideal temperature sources neither shows; with a `ThreeTempWall1D`
+  face on the other side the integrator drives `dt` below floating-point epsilon at
+  `t = 0` and reports only "unstable". A *steady* wind of any speed hides it, zero
+  included — it is passing through zero that fails, which is what a ship leaving harbour
+  does. `InternalConvection` smooths its cube root the same way, over 0.1 K.
 
 ## Known limitations
 
