@@ -42,9 +42,12 @@ function sun_vector_world(t, latitude_rad, longitude_rad, day_of_year, time_zone
     cos_az = (sin(delta) * cos(latitude_rad) -
               cos(delta) * sin(latitude_rad) * cos(omega)) / cos_alt
     # Sun direction (from sun to ground), in (East=X, North=Y, Up=Z) world frame.
+    # `sin_az`/`cos_az` describe the direction *to* the sun, so all three components are
+    # negated: at solar noon in the northern hemisphere the sun stands due south and the
+    # rays travel north and downward, giving Y > 0 and Z < 0.
     # Below-horizon zeroing is left to the Dyad side (`ifelse(SunHeight > 0, ...)`).
     return [-irradiance_ref * sin_az * cos_alt,
-             irradiance_ref * cos_az * cos_alt,
+            -irradiance_ref * cos_az * cos_alt,
             -irradiance_ref * sin_alt]
 end
 

@@ -9,7 +9,11 @@ if isfile(joinpath((@__DIR__) |> Base.dirname |> Base.dirname, "dyad", "Machiner
 end
 
 
+include("ElectricalLoad_experiment.jl")
 include("EventPeakSamplerChirp_experiment.jl")
 include("EventPeakSampler_experiment.jl")
 include("OnOffConsumer_experiment.jl")
 include("PeakSampler_experiment.jl")
+include("RandomStartLogic_experiment.jl")
+include("RandomStart_experiment.jl")
+include("ShipLoadBalance_experiment.jl")

@@ -1,0 +1,40 @@
+"""
+Base class for convection-coefficient models: heat flow from a surface area `A` at a
+film coefficient `h`.
+
+Ported from `ShipSIM.Components.Others.HeatTransfer.ConvectionFactors.Internal.ConvectionBaseClass`,
+which is the same component as `ThermalComponents.Interfaces.ConvectiveElement1D` — same
+`solid` / `fluid` heat ports, same `ΔT = solid.T - fluid.T`, same heat-flow sign
+convention — plus the surface area, the film coefficient and the film temperature. This
+port keeps only that difference and extends the library interface:
+
+```math
+Q_{flow} = h \\, A \\, \\Delta T
+```
+
+An extending component supplies `A` and `h`. `Tavg` is the arithmetic film temperature,
+at which a correlation's fluid properties should be evaluated.
+
+Upstream gives its four convection factors two different shapes: `ConvectionHorizontalCylinder`
+and `PlateForcedConvection` extend this base class, while `InternalConvection` and
+`ExternalConvection` instead wrap a `Modelica.Thermal.HeatTransfer.Components.Convection`
+and drive its `Gc`, exposing `port_Solid` / `port_Fluid`. All four extend this base class
+here, so every convection factor has the same ports and reports `h` and `A` the same way.
+The wrapping shape remains available as `ThermalComponents.Components.Convection`, whose
+`Gc` is a `RealInput`, for a coefficient computed outside the element.
+"""
+partial component ConvectionBaseClass
+  extends ThermalComponents.Interfaces.ConvectiveElement1D
+  "Heat transfer surface area [m²]"
+  variable A::Area
+  "Film (convective) heat transfer coefficient [W/(m²·K)]"
+  variable h::CoefficientOfHeatTransfer
+  "Film temperature, (solid.T + fluid.T) / 2 [K]"
+  variable Tavg::Temperature
+relations
+  # ΔT is what the solver is left to find where a face carries no capacitance, and the
+  # correlations are weakest exactly where it is small.
+  guess ΔT = 0
+  Tavg = (solid.T + fluid.T) / 2
+  Q_flow = h * A * ΔT
+end

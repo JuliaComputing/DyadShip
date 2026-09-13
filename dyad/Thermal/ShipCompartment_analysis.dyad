@@ -1,0 +1,149 @@
+"""
+One compartment, no ventilation and no comparison: the smallest thing that exercises the
+moist-air volume through both convection factors and the bulkhead.
+
+Ambient is 0 °C, the compartment starts at 20 °C with 6 kW of heating, and the apparent
+wind ramps to 20 m/s. The single fluid port is a still ambient boundary, so the only heat
+paths are the four bulkheads.
+"""
+test component CompartmentStill
+  apparent_wind = BlockComponents.Sources.Ramp(height = 20.0, duration = 10800.0,
+                                               offset = 0.0, start_time = 0.0)
+  calm = BlockComponents.Sources.Constant(k = 0.0)
+  ambient = ThermalComponents.Sources.FixedTemperature(T = 273.15)
+  room = ShipCompartment(N_flow = 1, N_surf = 4, V_tot = 200.0, A_wall = 40.0)
+  vent = HVACComponents.Components.Sources.Boundary_pTPhi(
+    medium_data = HVACComponents.moistair, p_in = 101325, T_in = 293.15, Phi_in = 0.5)
+  heat = ThermalComponents.Sources.FixedHeatFlow(Q_flow = 6000)
+  no_latent = ThermalComponents.Sources.FixedHeatFlow(Q_flow = 0)
+relations
+  connect(apparent_wind.y, room.WindVector_y)
+  connect(calm.y, room.WindVector_x, room.WindVector_z)
+  connect(room.ports[1], vent.port1)
+  connect(heat.port, room.QSensPort)
+  connect(no_latent.port, room.QLatPort)
+  for i in 1:4
+    connect(room.heatPorts[i], ambient.port)
+  end
+end
+
+analysis CompartmentStillAnalysis
+  extends TransientAnalysis(stop = 10800.0)
+  model = CompartmentStill()
+end
+
+"""
+A deckhouse leaving harbour: what a fixed film coefficient costs, and when it matters.
+
+Three 200 m³ deckhouses with four 40 m² bulkheads, 6 kW of sensible gain, 300 W of latent
+gain from the crew, and 0.05 m³/s of ventilation supply preheated to 20 °C at 40 % RH, as
+a ship's HVAC delivers it. Ambient is 0 °C. All three settle alongside for two hours, then
+the apparent wind ramps from nothing to 20 m/s over an hour and holds — the ship working
+up to full speed into a headwind — so the warm-up and the wind effect do not overlap.
+
+- `live` is `ShipCompartment` with an insulated bulkhead: its weather-side coefficient is
+  `ExternalConvection` reading that wind, its room-side coefficient `InternalConvection`
+  reading the bulkhead-to-air temperature difference.
+- `fixed` is `HVACComponents.Components.MultiportLumpedRoom` — the same geometry, wall
+  mass and loads, with the constant coefficients a building model would use (`U_outer = 5`,
+  about right for still air, and `U_inner = 3`).
+- `steel` is a `ShipCompartment` whose bulkhead is bare 8 mm steel instead of 50 mm of
+  rockwool.
+
+`live` against `fixed` is the fixed-`U` error on its own; `live` against `steel` is the
+answer to when it is worth caring. Behind insulation the films are a small part of the
+total resistance and the wind barely registers; on bare steel they are nearly all of it.
+
+`dew` reads the dew point of the air leaving `live`. Comparing it with `live.wall.Ta[1]`,
+the inner face of the bulkhead, is the question a compartment model is usually asked —
+whether the bulkheads sweat.
+
+The ventilation supply is preheated rather than drawn straight from the 0 °C outside
+because `HVACComponents` 0.3.0 will not initialise a `MultiportVolume` whose fluid
+boundary air is below about 15 °C (see `PORTING_NOTES.md`). The weather-side ambient is a
+`HeatPort` and is unaffected, so the winter case is intact.
+"""
+test component DeckhouseAtSea
+  parameter Q_sens::Real = 6000
+  parameter Q_lat::Real = 300
+  parameter V_supply::Real = 0.05
+  parameter T_supply::Temperature = 293.15
+  parameter RH_supply::Real = 0.4
+  parameter T_amb::Temperature = 273.15
+
+  apparent_wind = BlockComponents.Sources.Ramp(height = 20.0, duration = 3600.0,
+                                               offset = 0.0, start_time = 7200.0)
+  calm = BlockComponents.Sources.Constant(k = 0.0)
+  ambient = ThermalComponents.Sources.FixedTemperature(T = T_amb)
+
+  live = ShipCompartment(N_flow = 2, N_surf = 4, V_tot = 200.0, A_wall = 40.0,
+                         T_start = 293.15, T_wall_start = 293.15, Norm = [0, -1, 0])
+  steel = ShipCompartment(N_flow = 2, N_surf = 4, V_tot = 200.0, A_wall = 40.0,
+                          T_start = 293.15, T_wall_start = 293.15, Norm = [0, -1, 0],
+                          lambda_wall = 50.0, cp_wall = 490.0, rho_wall = 7850.0,
+                          d_wall = 0.008)
+  fixed = HVACComponents.Components.MultiportLumpedRoom(
+    N_flow = 2, N_surf = 4, V_tot = 200.0,
+    medium_data = HVACComponents.moistair,
+    p_start = 101325, T_start = 293.15, Xi_start = 0.007,
+    lambda_wall = 0.045, cp_wall = 840, d_wall = 0.05, A_wall = 40.0,
+    m_wall = 120 * 0.05 * 40.0, T_wall_start = 293.15,
+    U_inner = 3.0, U_outer = 5.0)
+
+  supply_live = DyadShip.MoistAir.SourceMoistAir()
+  supply_steel = DyadShip.MoistAir.SourceMoistAir()
+  supply_fixed = DyadShip.MoistAir.SourceMoistAir()
+  exhaust_live = HVACComponents.Components.Sources.Boundary_pTPhi(
+    medium_data = HVACComponents.moistair, p_in = 101325, T_in = 293.15, Phi_in = 0.5)
+  exhaust_steel = HVACComponents.Components.Sources.Boundary_pTPhi(
+    medium_data = HVACComponents.moistair, p_in = 101325, T_in = 293.15, Phi_in = 0.5)
+  exhaust_fixed = HVACComponents.Components.Sources.Boundary_pTPhi(
+    medium_data = HVACComponents.moistair, p_in = 101325, T_in = 293.15, Phi_in = 0.5)
+  dew = DyadShip.MoistAir.DewTemperature()
+
+  heat_live = ThermalComponents.Sources.FixedHeatFlow(Q_flow = Q_sens)
+  heat_steel = ThermalComponents.Sources.FixedHeatFlow(Q_flow = Q_sens)
+  heat_fixed = ThermalComponents.Sources.FixedHeatFlow(Q_flow = Q_sens)
+  latent_live = ThermalComponents.Sources.FixedHeatFlow(Q_flow = Q_lat)
+  latent_steel = ThermalComponents.Sources.FixedHeatFlow(Q_flow = Q_lat)
+  latent_fixed = ThermalComponents.Sources.FixedHeatFlow(Q_flow = Q_lat)
+relations
+  supply_live.Air_Flow = V_supply
+  supply_live.RH = RH_supply
+  supply_live.Temp = T_supply
+  supply_steel.Air_Flow = V_supply
+  supply_steel.RH = RH_supply
+  supply_steel.Temp = T_supply
+  supply_fixed.Air_Flow = V_supply
+  supply_fixed.RH = RH_supply
+  supply_fixed.Temp = T_supply
+
+  connect(apparent_wind.y, live.WindVector_y, steel.WindVector_y)
+  connect(calm.y, live.WindVector_x, live.WindVector_z,
+          steel.WindVector_x, steel.WindVector_z)
+
+  connect(supply_live.port, live.ports[1])
+  connect(live.ports[2], exhaust_live.port1, dew.port)
+  connect(supply_steel.port, steel.ports[1])
+  connect(steel.ports[2], exhaust_steel.port1)
+  connect(supply_fixed.port, fixed.ports[1])
+  connect(fixed.ports[2], exhaust_fixed.port1)
+
+  connect(heat_live.port, live.QSensPort)
+  connect(latent_live.port, live.QLatPort)
+  connect(heat_steel.port, steel.QSensPort)
+  connect(latent_steel.port, steel.QLatPort)
+  connect(heat_fixed.port, fixed.QSensPort)
+  connect(latent_fixed.port, fixed.QLatPort)
+
+  for i in 1:4
+    connect(live.heatPorts[i], ambient.port)
+    connect(steel.heatPorts[i], ambient.port)
+    connect(fixed.heatPorts[i], ambient.port)
+  end
+end
+
+analysis DeckhouseAtSeaAnalysis
+  extends TransientAnalysis(stop = 18000.0)
+  model = DeckhouseAtSea()
+end

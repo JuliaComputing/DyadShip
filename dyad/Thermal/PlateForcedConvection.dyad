@@ -1,0 +1,72 @@
+"""
+Convection film coefficient for forced flow along a flat plate, turbulent.
+
+Ported from `ShipSIM.Components.Others.HeatTransfer.ConvectionFactors.PlateForcedConvection`.
+The plate's wetted area `A_plate` and its length `L` in the flow direction are parameters;
+the flow speed `AirSpeed` is a real input.
+
+```math
+Nu_f = \\frac{0.037 \\, Re^{0.8} \\, Pr}{1 + \\frac{2.443}{Re^{0.1}} \\left(Pr^{2/3} - 1\\right)}
+\\qquad h = \\frac{k}{L} Nu_f
+```
+
+after Petukhov (1963) and Schlichting (1958), with the Reynolds number built on the
+dynamic viscosity, ``Re = u \\, \\rho \\, L / \\mu``.
+
+The correlation is fitted for ``5 \\times 10^5 < Re < 10^7`` and ``0.6 \\le Pr \\le 2000``;
+upstream warns on both at assertion level. Dyad has no assertion form, so `Re` is a
+variable an analysis can plot against that range, and `Pr` is a `final parameter` visible
+in the parameter set. Below the transition Reynolds number this returns a turbulent
+coefficient for a laminar boundary layer and so overpredicts `h` — the upstream component
+has the same range and the same silence about it outside the warning.
+
+Deviations from upstream, both numerical:
+
+- The Reynolds number uses `abs(AirSpeed)`, so a reversed flow gives the same coefficient
+  rather than a NaN out of `Re^0.8`.
+- `Re` is floored by `eps_num` under both fractional powers. Upstream already floors the
+  `Re^0.1` in the denominator (at 1e-6) but not the `Re^0.8` in the numerator, whose
+  derivative is infinite at rest.
+
+Three parameters are renamed from upstream: the plate surface `A` is `A_plate`, because
+`A` is the base class's area variable; the kinematic viscosity `v` is `nu`; and the
+dynamic viscosity `n` is `mu`.
+"""
+component PlateForcedConvection
+  extends ConvectionBaseClass
+  "Flow speed along the plate [m/s]"
+  AirSpeed = RealInput()
+
+  "Length of the plate in the flow direction [m]"
+  parameter L::Length
+  "Wetted surface of the plate [m²]"
+  parameter A_plate::Area
+
+  "Fluid thermal conductivity [W/(m·K)]"
+  parameter k::ThermalConductivity = 0.024
+  "Fluid kinematic viscosity [m²/s]"
+  parameter nu::Real = 1.562e-5
+  "Fluid density [kg/m³]"
+  parameter rho::Density = 1.184
+  "Fluid specific heat capacity [J/(kg·K)]"
+  parameter Cp::SpecificHeatCapacity = 1007
+
+  "Floor applied to Re under fractional powers"
+  parameter eps_num::Real = 1e-12
+
+  "Fluid dynamic viscosity, nu·rho [Pa·s]"
+  final parameter mu::DynamicViscosity = nu * rho
+  "Prandtl number"
+  final parameter Pr::Real = mu * Cp / k
+
+  "Reynolds number"
+  variable Re::Real
+  "Nusselt number, forced convection"
+  variable Nu_f::Real
+relations
+  A = A_plate
+
+  Re = abs(AirSpeed) * rho * L / mu
+  Nu_f = (0.037 * max(Re, eps_num) ^ 0.8 * Pr) / (1 + 2.443 / max(Re, eps_num) ^ 0.1 * (Pr ^ (2 / 3) - 1))
+  h = (k / L) * Nu_f
+end

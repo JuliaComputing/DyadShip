@@ -12,6 +12,7 @@ using IncompressibleFlowComponents
 using ModelingToolkit
 
 include("FlettnerCFDLive.jl")
+include("Rainflow.jl")
 
 """
     flettner_live_fx(t)

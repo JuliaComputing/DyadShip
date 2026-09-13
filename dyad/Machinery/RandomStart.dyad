@@ -1,0 +1,86 @@
+"""
+Randomised on/off scheduler: a work signal that switches on and off at seeded random
+intervals, averaging `StartsHour` starts per hour.
+
+Ported from `ShipSIM.Components.Electrical.Internal.RandomStart`, which keeps a
+`discrete Real NextStep` and a `when time >= pre(NextStep)` event to flip a boolean
+`Work` output, with the interval drawn from a seeded normal noise source.
+
+The port is the same state machine written in the clocked sublanguage: the transition
+time is a clocked state, `t_now@clk >= next_t@(clk-1)` is the event, and the interval is drawn
+from `DiscreteComponents.UniformNoise`, which is seeded and reproducible. Transitions are
+therefore located to within one `dt` rather than exactly, which is immaterial for a load
+schedule whose periods are minutes.
+
+The port's earlier note that this could not be written in Dyad — repeated in
+`OnOffConsumer`'s docstring — predates `DiscreteComponents`.
+
+The mean period is `3600 / StartsHour`, spread over `±dev` of itself, and `duty` of each
+period is spent on. Drive `OnOffConsumer.WorkSignal` from `Work`.
+"""
+component RandomStartLogic@[input clk extends Discrete]
+  "Sampled simulation time [s]"
+  t_now = RealInput@[clk]()
+  "Uniform random draw in [0, 1], one per tick"
+  u = RealInput@[clk]()
+  "1 while the consumer is running, 0 while it is off"
+  Work = RealOutput@[clk]()
+
+  "Mean number of starts per hour"
+  parameter StartsHour::Real = 4
+  "Fractional spread of the period, 0 = every period identical"
+  parameter dev::Real = 0.5
+  "Fraction of each period spent running"
+  parameter duty::Real = 0.5
+  "Time of the first transition [s]"
+  parameter t_first::Real = 0
+
+  "Time of the next transition [s]"
+  variable next_t::Real
+  "Length of the period drawn at this tick [s]"
+  variable period::Real
+  variable fired::Real
+relations
+  period@clk = (3600 / StartsHour) * (1 + dev * (2 * u@clk - 1))
+  fired@clk = ifelse(t_now@clk >= next_t@(clk-1), 1, 0)
+  Work@clk = ifelse(fired@clk > 0.5, 1 - Work@(clk-1), Work@(clk-1))
+  next_t@clk = ifelse(fired@clk > 0.5,
+                      t_now@clk + ifelse(Work@clk > 0.5, duty * period@clk, (1 - duty) * period@clk),
+                      next_t@(clk-1))
+  initial Work@(clk-1) = 0
+  initial next_t@(clk-1) = t_first
+end
+
+"""
+`RandomStartLogic` on a periodic clock, with the work signal held back to continuous time.
+
+`seed` makes the schedule reproducible: the same seed and the same `dt` give the same
+sequence of starts. Give every consumer in a bank a different seed, or they all switch
+together.
+"""
+component RandomStart
+  "1 while the consumer is running, 0 while it is off"
+  Work = RealOutput()
+
+  "Sampling period of the scheduler [s]"
+  structural parameter dt::Real = 10.0
+  "RNG seed"
+  structural parameter seed::Integer = 1
+  parameter StartsHour::Real = 4
+  parameter dev::Real = 0.5
+  parameter duty::Real = 0.5
+  parameter t_first::Real = 0
+
+  contclock = BlockComponents.Sources.ContinuousClock()
+  sampler = DiscreteComponents.Sampler()
+  clock = DiscreteComponents.PeriodicClock(dt = dt)
+  noise = DiscreteComponents.UniformNoise(seed = seed, l = 0, u = 1)
+  logic = RandomStartLogic(StartsHour = StartsHour, dev = dev, duty = duty, t_first = t_first)
+  hold = DiscreteComponents.ZeroOrderHold(initial_condition = 0)
+relations
+  connect(contclock.y, sampler.u)
+  connect(sampler.y, logic.t_now, clock.y)
+  connect(noise.y, logic.u)
+  connect(logic.Work, hold.u)
+  connect(hold.y, Work)
+end

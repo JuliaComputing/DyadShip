@@ -12,3 +12,5 @@ if isfile(joinpath((@__DIR__) |> Base.dirname |> Base.dirname, "dyad", "Thermal"
   include(joinpath((@__DIR__) |> Base.dirname |> Base.dirname, "dyad", "Thermal", "types.jl"))
 end
 
+
+include("WallType_type.jl")

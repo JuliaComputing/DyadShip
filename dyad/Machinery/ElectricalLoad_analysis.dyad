@@ -1,0 +1,28 @@
+"""
+Six hours of a small ship's electrical load: six consumers on independent random
+schedules, and the bus load they add up to.
+
+The consumer list is the shape upstream's `Balance` uses — a few large intermittent
+machines (a 37 kW compressor, a 15 kW pump) among smaller continuous ones — at a 30 s
+scheduler tick, which resolves the shortest mean period here (400 s) about thirteen
+times over. Every periodic clock forces a solver step per tick, so the tick rate is what
+sets the cost of a long EPLA run: six schedulers over six hours is already 4320 ticks. What an EPLA wants out of it is the running average against
+the installed total, which is the diversity factor.
+
+The schedule is reproducible: the same `seed_base` and `dt` give the same switching
+sequence, so a change in the load list can be compared against a baseline.
+"""
+test component ShipLoadBalance
+  bank = ElectricalLoad(
+    N = 6,
+    dt = 30.0,
+    seed_base = 100,
+    NominalPower = [37000, 15000, 11000, 6600, 5500, 4000],
+    StartsHour   = [    3,     5,     2,    9,     6,    8],
+    duty         = [  0.3,   0.4,   0.6,  0.5,   0.2,  0.7])
+end
+
+analysis ShipLoadBalanceTransient
+  extends TransientAnalysis(stop = 21600.0)
+  model = ShipLoadBalance()
+end

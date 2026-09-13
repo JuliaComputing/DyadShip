@@ -17,9 +17,9 @@ oscillates around 1.0 at `CycleAmplitude` and `CycleFrequency`. Same conceptual 
 output = NominalPower · Kr · cycle_factor(time_since_on) when on, 0 when off.
 
 Limitations vs upstream:
-- No randomness in the on/off pattern.
 - No optional `Integrators` sub-component (`getIntegrators = true`); the user can
-  feed `y` into a `BlockComponents.Continuous.Integrator` externally.
+  feed `y` into a `BlockComponents.Continuous.Integrator` externally, which is what
+  `Machinery.ElectricalLoad` does for the bus average.
 - A precise replay of the upstream's table-based start signature would need the user
   to provide their own external time-shaped signal multiplied by `WorkSignal`.
 """
@@ -33,23 +33,30 @@ component OnOffConsumer
   parameter CycleAmplitude::Real = 0.1
   "Steady-cycle frequency [Hz]."
   parameter CycleFrequency::Real = 1.0
+  "Switching lag applied to `WorkSignal` [s]."
+  parameter T_switch::Real = 1.0
 
   WorkSignal = RealInput()
   y = RealOutput()
 
   variable time_on::Real      # tracks how long the consumer has been on
   variable shape::Real
+  variable on_state::Real     # WorkSignal behind the switching lag
 relations
   initial time_on = 0
+  initial on_state = 0
+  der(on_state) = (WorkSignal - on_state) / T_switch
 
   # Time-since-on integrator: increments only when WorkSignal > 0.5; resets toward 0
   # when WorkSignal goes back below 0.5 (continuous approximation).
-  der(time_on) = ifelse(WorkSignal > 0.5, 1, -time_on)
+  der(time_on) = ifelse(on_state > 0.5, 1, -time_on)
 
   # Shape: ramp to 1.0 over StartTime, then small steady oscillation.
+  # max() on the ramp: time_on relaxes toward zero while off and the solver can leave it
+  # a little negative, which would otherwise make the power negative on the next start.
   shape = ifelse(time_on < StartTime,
-                 time_on / StartTime,
+                 max(time_on, 0) / StartTime,
                  1 + CycleAmplitude * sin(2 * π * CycleFrequency * (time_on - StartTime)))
 
-  y = WorkSignal * NominalPower * Kr * shape
+  y = on_state * NominalPower * Kr * shape
 end

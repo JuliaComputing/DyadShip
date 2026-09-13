@@ -16,8 +16,12 @@ end
 
 
 @testset "`DyadShip.Machinery`" begin
+include("ElectricalLoad_test.jl")
 include("EventPeakSamplerChirp_test.jl")
 include("EventPeakSampler_test.jl")
 include("OnOffConsumer_test.jl")
 include("PeakSampler_test.jl")
+include("RandomStartLogic_test.jl")
+include("RandomStart_test.jl")
+include("ShipLoadBalance_test.jl")
 end

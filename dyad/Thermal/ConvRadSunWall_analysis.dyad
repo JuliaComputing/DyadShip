@@ -1,0 +1,77 @@
+"""
+One day on three external walls at 43.4°N: a south wall, a north wall, and a south wall
+under an overhang. `day_of_year` picks the season.
+
+Each wall is a 200 mm concrete slab (`PlateTransient`) with `ConvRadSunWall` on its outer
+face and a 20 °C room on its inner face. Ambient air is 25 °C, the clear sky 20 K colder,
+and a 3 m/s breeze blows due east — square-on to every wall normal, so all three see the
+same film coefficient and solar gain is the only thing that differs between them.
+
+`south` carries a glazed fraction (`tau_trans = 0.1`), so its `port_Transmission` is the
+only one with flux through it; the other two are connected to the same room but pass
+nothing.
+
+Solar noon is at 13.55 h on this clock: the site is UTC+1 at 8.24° west.
+"""
+test component SunWallDay
+  "Day of the year; 355 is the winter solstice, 172 the summer one"
+  parameter day_of_year::Real = 355
+
+  sun = SolarIrradiation(day_of_year = day_of_year)
+  breeze_east = BlockComponents.Sources.Constant(k = 3.0)
+  calm = BlockComponents.Sources.Constant(k = 0.0)
+
+  air = ThermalComponents.Sources.FixedTemperature(T = 298.15)
+  sky = ThermalComponents.Sources.FixedTemperature(T = 278.15)
+  room = ThermalComponents.Sources.FixedTemperature(T = 293.15)
+
+  south = ConvRadSunWall(WallHeight = 3.0, Surf = 30.0, Norm = [0, -1, 0], tau_trans = 0.1)
+  north = ConvRadSunWall(WallHeight = 3.0, Surf = 30.0, Norm = [0, 1, 0])
+  shaded = ConvRadSunWall(WallHeight = 3.0, Surf = 30.0, Norm = [0, -1, 0],
+                          UseSunScreen = true, d = 1.0, h_screen = 0.5)
+
+  slab_s = PlateTransient(e = 0.2, Asur = 30.0, k = 1.4, rhoCp = 2e6, T_init = 293.15)
+  slab_n = PlateTransient(e = 0.2, Asur = 30.0, k = 1.4, rhoCp = 2e6, T_init = 293.15)
+  slab_x = PlateTransient(e = 0.2, Asur = 30.0, k = 1.4, rhoCp = 2e6, T_init = 293.15)
+relations
+  connect(south.port_Wall, slab_s.port_a)
+  connect(north.port_Wall, slab_n.port_a)
+  connect(shaded.port_Wall, slab_x.port_a)
+  connect(slab_s.port_b, slab_n.port_b, slab_x.port_b, room.port)
+
+  connect(south.port_Air, north.port_Air, shaded.port_Air, air.port)
+  connect(south.port_Sky, north.port_Sky, shaded.port_Sky, sky.port)
+  connect(south.port_Transmission, north.port_Transmission, shaded.port_Transmission, room.port)
+
+  connect(breeze_east.y, south.WindVector_x, north.WindVector_x, shaded.WindVector_x)
+  connect(calm.y, south.WindVector_y, north.WindVector_y, shaded.WindVector_y,
+          south.WindVector_z, north.WindVector_z, shaded.WindVector_z)
+
+  connect(sun.SunVector_x, south.SunVector_x, north.SunVector_x, shaded.SunVector_x)
+  connect(sun.SunVector_y, south.SunVector_y, north.SunVector_y, shaded.SunVector_y)
+  connect(sun.SunVector_z, south.SunVector_z, north.SunVector_z, shaded.SunVector_z)
+  connect(sun.SunHeight, south.SunHeight, north.SunHeight, shaded.SunHeight)
+end
+
+"""
+Winter solstice. The sun rises south-east and sets south-west, never getting behind the
+building, so the south wall takes the day's whole gain — around 920 W/m² at solar noon,
+because a 23° sun is nearly square-on to a vertical surface — and the north wall takes
+none at all. This is the case an external-wall model is usually built for.
+"""
+analysis SunWallWinterAnalysis
+  extends TransientAnalysis(stop = 86400.0)
+  model = SunWallDay(day_of_year = 355)
+end
+
+"""
+Summer solstice, where the orientations invert. At this latitude the sun rises well north
+of east and sets well north of west, so the *north* wall is lit at dawn and dusk — two
+peaks, neither near midday — while the south wall sees a 70° sun at noon and a vertical
+surface catches only its cosine, about 340 W/m². Getting this backwards is exactly what a sign
+error in the solar azimuth looks like, which is why the pair is worth running.
+"""
+analysis SunWallSummerAnalysis
+  extends TransientAnalysis(stop = 86400.0)
+  model = SunWallDay(day_of_year = 172)
+end

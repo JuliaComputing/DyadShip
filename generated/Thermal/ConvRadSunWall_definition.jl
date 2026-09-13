@@ -7,66 +7,98 @@
 import Moshi as __Ext__Moshi
 
 @doc Markdown.doc"""
-   ConvRadSunWall(; name, A, alpha_abs, epsilon, sigma)
+   ConvRadSunWall(; name, UseSunScreen, OnOffSunIrrad, WallHeight, Surf, Norm, d, h_screen, vieFacSky, epsilon, minSunHeight, alpha_abs, tau_trans, GlassFactor, ShadowFactor)
 
-External wall heat-transfer block: sun irradiation + radiation + wind convection.
+External wall: solar gain, long-wave radiation to sky and air, and wind convection.
 
-Simplified port of `ShipSIM.Components.Others.HeatTransfer.ConvRadSunWall`. The upstream
-model wired together internal sub-components from `Components.Others.HeatTransfer.Internal.*`
-(BodyRadiation, FreeConvection, ConvRadSimplified) plus our `IrradiationOnPlane` and
-`SunScreen` ports. Without those sub-libraries on hand, this version implements the
-combined heat flux directly:
+Full port of `ShipSIM.Components.Others.HeatTransfer.ConvRadSunWall`, composed from the
+same sub-components upstream composes it from. The earlier port here flattened the whole
+model into one algebraic heat flux and took the convective coefficient as a real input,
+because those sub-components were not available; they now are. Its ports are gone — this
+component takes the environment directly (sun vector, sun height, wind vector) rather than
+a precomputed irradiance and film coefficient.
 
-```math
-Q_\\mathrm{net} = \\alpha_\\mathrm{abs} \\cdot S_\\mathrm{eff} \\cdot \\sigma_\\mathrm{shade} \\cdot A
-                + h_c \\cdot A \\cdot (T_\\mathrm{air} - T_\\mathrm{wall})
-                + \\varepsilon \\sigma A (T_\\mathrm{sky}^4 - T_\\mathrm{wall}^4)
-```
+Four heat paths reach `port_Wall`:
 
-where:
-- `S_eff` is the irradiance on the wall plane (real input — typically computed via the
-  separately-ported `IrradiationOnPlane`).
-- `sigma_shade` is the un-shaded fraction (0..1, real input — typically from `SunScreen`).
-- `h_c` is the convective heat-transfer coefficient (real input — wind-dependent).
-- `T_air` and `T_sky` are the ambient and effective sky temperatures (real inputs).
+- **Long-wave to sky**, `ThermalComponents.Components.BodyRadiation` with
+  `Gr = vieFacSky · epsilon · Surf`.
+- **Long-wave to air**, a second `BodyRadiation` with the complementary view factor
+  `Gr = (1 - vieFacSky) · epsilon · Surf`. Splitting the surface's radiation between a
+  cold sky and the ambient air by view factor is the part the flattened version lost:
+  it radiated the whole surface to the sky, which overstates night-time cooling on a
+  vertical wall by a factor of two.
+- **Convection**, `ExternalConvection` (Nusselt–Jürges with the windward/leeward factor),
+  between the wall and `port_Air`.
+- **Absorbed solar**, a `PrescribedHeatFlow` injecting
+  `alpha_abs · Surf · (1 - ShadowFactor) · S_eff`.
 
-The component has one HeatPort `port_wall` connecting to the wall material's outermost
-node (typically the boundary of a `PlateTransient`).
+and a fifth leaves through `port_Transmission`, the glazed fraction's share passing
+*through* the wall into the space behind it,
+`tau_trans · Surf · (1 - ShadowFactor) · GlassFactor · S_eff`.
 
-Limitations vs upstream:
-- Wall area `A`, absorptivity `alpha_abs`, emissivity `epsilon` exposed as parameters.
-  No automatic computation from `Length × Height`-style geometry — caller supplies `A`.
-- Sun-screen and IrradianceOnPlane wiring is the caller's responsibility (this Dyad
-  block consumes their *outputs*, not their internal frames).
+`S_eff` is the plane irradiance from `IrradiationOnPlane` (given the sun vector and the
+surface normal), gated by `minSunHeight` — grazing sun is not counted, as upstream — and
+multiplied by the lit fraction `SunScreen` reports for an overhang above the wall.
+
+All four heat ports are acausal and must be connected; `port_Transmission` in particular,
+since the transmitted flux is prescribed and an unconnected port would force it to zero.
+
+The wind and sun vectors arrive as scalar inputs, as they do elsewhere in this package
+(`IrradiationOnPlane`, `ExternalConvection`); Dyad has no array connectors.
+
+Deviations from upstream:
+
+- `UseSunScreen` bypasses the overhang, setting the lit fraction to 1. Upstream has no
+  such switch and defaults the screen geometry to `d = 0, h = 0`, at which its own
+  `atan(h/d)` is `0/0`. A wall with no overhang is the common case and needs a way to say
+  so.
+- Renamed parameters: upstream's `e` is `epsilon`, `ab` is `alpha_abs`, `tr` is
+  `tau_trans`, and the sun screen's `h` is `h_screen` — a bare `h` next to a wall model
+  reads as a film coefficient.
+- `vieFacSky` defaults to 0.5, the vertical-wall value (a roof is 1). Upstream requires it.
 
 ## Parameters:
 
 | Name         | Description                         | Units  |   Default value |
 | ------------ | ----------------------------------- | ------ | --------------- |
-| `A`         |                          | m2  |   1.0 |
-| `alpha_abs`         |                          | --  |   0.7 |
-| `epsilon`         |                          | --  |   0.9 |
-| `sigma`         | Stefan-Boltzmann constant [W/(m²·K⁴)]                         | --  |   5.670374e-8 |
+| `UseSunScreen`         | Whether an overhang shades the wall; false makes the lit fraction 1                         | --  |   false |
+| `OnOffSunIrrad`         | Whether solar irradiation is counted at all                         | --  |   true |
+| `WallHeight`         | Wall height, the vertical extent the sun screen shades [m]                         | m  |    |
+| `Surf`         | Wall surface area [m²]                         | m2  |    |
+| `Norm`         | Outward surface normal, pointing away from the wall                         | --  |   [0, -1, 0] |
+| `d`         | Horizontal distance from the overhang to the wall plane [m]                         | m  |   1.0 |
+| `h_screen`         | Vertical distance from the upper wall edge to the overhang, positive upward [m]                         | m  |   0.5 |
+| `vieFacSky`         | View factor from the surface to the sky (0.5 for a vertical wall, 1 for a roof)                         | --  |   0.5 |
+| `epsilon`         | Surface long-wave emissivity                         | --  |   0.9 |
+| `minSunHeight`         | Solar altitude below which irradiation is not counted [deg]                         | --  |   10 |
+| `alpha_abs`         | Surface solar absorptance                         | --  |   0.7 |
+| `tau_trans`         | Surface solar transmittance                         | --  |   0.0 |
+| `GlassFactor`         | Glazed fraction of the wall area, which is what transmits                         | --  |   0.75 |
+| `ShadowFactor`         | Global shadow factor: 0 = unshaded, 1 = fully shaded. Do not duplicate the sun screen here.                         | --  |   0 |
 
 ## Connectors
 
- * `S_panel` - This connector represents a real signal as an input to a component ([`RealInput`](@ref))
- * `shade_factor` - This connector represents a real signal as an input to a component ([`RealInput`](@ref))
- * `h_c` - This connector represents a real signal as an input to a component ([`RealInput`](@ref))
- * `T_air` - This connector represents a real signal as an input to a component ([`RealInput`](@ref))
- * `T_sky` - This connector represents a real signal as an input to a component ([`RealInput`](@ref))
- * `port_wall` - This connector represents a thermal port with temperature and heat flow as the potential and flow variables, respectively. ([`HeatPort`](@ref))
+ * `WindVector_x` - This connector represents a real signal as an input to a component ([`RealInput`](@ref))
+ * `WindVector_y` - This connector represents a real signal as an input to a component ([`RealInput`](@ref))
+ * `WindVector_z` - This connector represents a real signal as an input to a component ([`RealInput`](@ref))
+ * `SunVector_x` - This connector represents a real signal as an input to a component ([`RealInput`](@ref))
+ * `SunVector_y` - This connector represents a real signal as an input to a component ([`RealInput`](@ref))
+ * `SunVector_z` - This connector represents a real signal as an input to a component ([`RealInput`](@ref))
+ * `SunHeight` - This connector represents a real signal as an input to a component ([`RealInput`](@ref))
+ * `port_Sky` - This connector represents a thermal port with temperature and heat flow as the potential and flow variables, respectively. ([`HeatPort`](@ref))
+ * `port_Air` - This connector represents a thermal port with temperature and heat flow as the potential and flow variables, respectively. ([`HeatPort`](@ref))
+ * `port_Wall` - This connector represents a thermal port with temperature and heat flow as the potential and flow variables, respectively. ([`HeatPort`](@ref))
+ * `port_Transmission` - This connector represents a thermal port with temperature and heat flow as the potential and flow variables, respectively. ([`HeatPort`](@ref))
 
 ## Variables
 
 | Name         | Description                         | Units  | 
 | ------------ | ----------------------------------- | ------ |
-| `Q_solar`         |                          | W  |
-| `Q_conv`         |                          | W  |
-| `Q_rad`         |                          | W  |
-| `Q_total`         |                          | W  |
+| `S_gated`         | Plane irradiance after the sun-height gate [W/m²]                         | --  |
+| `S_eff`         | Plane irradiance reaching the wall, after gating and shading [W/m²]                         | --  |
+| `lit`         | Lit fraction of the wall, 0 = fully shaded                         | --  |
 """
-@component function ConvRadSunWall(; name = nothing, A=Float64(1.0), alpha_abs=0.7, epsilon=0.9, sigma=5.670374e-8, kwargs...)
+@component function ConvRadSunWall(; name = nothing, UseSunScreen=false, OnOffSunIrrad=true, WallHeight=nothing, Surf=nothing, Norm=[Float64(0), Float64(-1), Float64(0)], d=Float64(1.0), h_screen=0.5, vieFacSky=0.5, epsilon=0.9, minSunHeight=Float64(10), alpha_abs=0.7, tau_trans=Float64(0.0), GlassFactor=0.75, ShadowFactor=Float64(0), kwargs...)
   isnothing(name) && throw(ArgumentError("""
     The `name` keyword must be provided. Please consider using the `@named` macro,
     like so:
@@ -97,62 +129,107 @@ Limitations vs upstream:
   ### Deferred assignment (default values that depend on final parameters)
 
   ### Symbolic Parameters
-  __local__A = A
-  append!(__params, @parameters (A::Real))
-  __initial_conditions[A] = __local__A
-  __local__alpha_abs = alpha_abs
-  append!(__params, @parameters (alpha_abs::Real))
-  __initial_conditions[alpha_abs] = __local__alpha_abs
+  __local__WallHeight = WallHeight
+  append!(__params, @parameters (WallHeight::Real), [description = "Wall height, the vertical extent the sun screen shades [m]"])
+  __initial_conditions[WallHeight] = __local__WallHeight
+  __local__Surf = Surf
+  append!(__params, @parameters (Surf::Real), [description = "Wall surface area [m²]"])
+  __initial_conditions[Surf] = __local__Surf
+  __local__Norm = Norm
+  append!(__params, @parameters (Norm[1:3]::Real), [description = "Outward surface normal, pointing away from the wall"])
+  __initial_conditions[Norm] = __local__Norm
+  __local__d = d
+  append!(__params, @parameters (d::Real), [description = "Horizontal distance from the overhang to the wall plane [m]"])
+  __initial_conditions[d] = __local__d
+  __local__h_screen = h_screen
+  append!(__params, @parameters (h_screen::Real), [description = "Vertical distance from the upper wall edge to the overhang, positive upward [m]"])
+  __initial_conditions[h_screen] = __local__h_screen
+  __local__vieFacSky = vieFacSky
+  append!(__params, @parameters (vieFacSky::Real), [description = "View factor from the surface to the sky (0.5 for a vertical wall, 1 for a roof)", bounds = (0, 1)])
+  __initial_conditions[vieFacSky] = __local__vieFacSky
   __local__epsilon = epsilon
-  append!(__params, @parameters (epsilon::Real))
+  append!(__params, @parameters (epsilon::Real), [description = "Surface long-wave emissivity", bounds = (0, 1)])
   __initial_conditions[epsilon] = __local__epsilon
-  __local__sigma = sigma
-  append!(__params, @parameters (sigma::Real), [description = "Stefan-Boltzmann constant [W/(m²·K⁴)]"])
-  __initial_conditions[sigma] = __local__sigma
+  __local__minSunHeight = minSunHeight
+  append!(__params, @parameters (minSunHeight::Real), [description = "Solar altitude below which irradiation is not counted [deg]"])
+  __initial_conditions[minSunHeight] = __local__minSunHeight
+  __local__alpha_abs = alpha_abs
+  append!(__params, @parameters (alpha_abs::Real), [description = "Surface solar absorptance", bounds = (0, 1)])
+  __initial_conditions[alpha_abs] = __local__alpha_abs
+  __local__tau_trans = tau_trans
+  append!(__params, @parameters (tau_trans::Real), [description = "Surface solar transmittance", bounds = (0, 1)])
+  __initial_conditions[tau_trans] = __local__tau_trans
+  __local__GlassFactor = GlassFactor
+  append!(__params, @parameters (GlassFactor::Real), [description = "Glazed fraction of the wall area, which is what transmits", bounds = (0, 1)])
+  __initial_conditions[GlassFactor] = __local__GlassFactor
+  __local__ShadowFactor = ShadowFactor
+  append!(__params, @parameters (ShadowFactor::Real), [description = "Global shadow factor: 0 = unshaded, 1 = fully shaded. Do not duplicate the sun screen here.", bounds = (0, 1)])
+  __initial_conditions[ShadowFactor] = __local__ShadowFactor
 
   ### Final Parameters (assignments)
 
   ### Final Path Parameters
-  append!(__vars, @variables (S_panel(t)::Real), [input = true])
-  append!(__vars, @variables (shade_factor(t)::Real), [input = true])
-  append!(__vars, @variables (h_c(t)::Real), [input = true])
-  append!(__vars, @variables (T_air(t)::Real), [input = true])
-  append!(__vars, @variables (T_sky(t)::Real), [input = true])
+  append!(__vars, @variables (WindVector_x(t)::Real), [input = true])
+  append!(__vars, @variables (WindVector_y(t)::Real), [input = true])
+  append!(__vars, @variables (WindVector_z(t)::Real), [input = true])
+  append!(__vars, @variables (SunVector_x(t)::Real), [input = true])
+  append!(__vars, @variables (SunVector_y(t)::Real), [input = true])
+  append!(__vars, @variables (SunVector_z(t)::Real), [input = true])
+  append!(__vars, @variables (SunHeight(t)::Real), [input = true])
 
   ### Variables (declarations)
-  append!(__vars, @variables (Q_solar(t)::Real))
-  append!(__vars, @variables (Q_conv(t)::Real))
-  append!(__vars, @variables (Q_rad(t)::Real))
-  append!(__vars, @variables (Q_total(t)::Real))
+  append!(__vars, @variables (S_gated(t)::Real), [description = "Plane irradiance after the sun-height gate [W/m²]"])
+  append!(__vars, @variables (S_eff(t)::Real), [description = "Plane irradiance reaching the wall, after gating and shading [W/m²]"])
+  append!(__vars, @variables (lit(t)::Real), [description = "Lit fraction of the wall, 0 = fully shaded"])
 
   ### Variables (assignments)
-  __ovr_Q_solar = pop!(__overrides, "Q_solar", nothing); isnothing(__ovr_Q_solar) || push!(__eqs, Q_solar ~ __ovr_Q_solar)
-  __ovr_Q_solar__initial = pop!(__overrides, "Q_solar__initial", nothing); isnothing(__ovr_Q_solar__initial) || (__initial_conditions[Q_solar] = __ovr_Q_solar__initial)
-  __ovr_Q_solar__guess = pop!(__overrides, "Q_solar__guess", nothing)
-  __ovr_Q_conv = pop!(__overrides, "Q_conv", nothing); isnothing(__ovr_Q_conv) || push!(__eqs, Q_conv ~ __ovr_Q_conv)
-  __ovr_Q_conv__initial = pop!(__overrides, "Q_conv__initial", nothing); isnothing(__ovr_Q_conv__initial) || (__initial_conditions[Q_conv] = __ovr_Q_conv__initial)
-  __ovr_Q_conv__guess = pop!(__overrides, "Q_conv__guess", nothing)
-  __ovr_Q_rad = pop!(__overrides, "Q_rad", nothing); isnothing(__ovr_Q_rad) || push!(__eqs, Q_rad ~ __ovr_Q_rad)
-  __ovr_Q_rad__initial = pop!(__overrides, "Q_rad__initial", nothing); isnothing(__ovr_Q_rad__initial) || (__initial_conditions[Q_rad] = __ovr_Q_rad__initial)
-  __ovr_Q_rad__guess = pop!(__overrides, "Q_rad__guess", nothing)
-  __ovr_Q_total = pop!(__overrides, "Q_total", nothing); isnothing(__ovr_Q_total) || push!(__eqs, Q_total ~ __ovr_Q_total)
-  __ovr_Q_total__initial = pop!(__overrides, "Q_total__initial", nothing); isnothing(__ovr_Q_total__initial) || (__initial_conditions[Q_total] = __ovr_Q_total__initial)
-  __ovr_Q_total__guess = pop!(__overrides, "Q_total__guess", nothing)
+  __ovr_S_gated = pop!(__overrides, "S_gated", nothing); isnothing(__ovr_S_gated) || push!(__eqs, S_gated ~ __ovr_S_gated)
+  __ovr_S_gated__initial = pop!(__overrides, "S_gated__initial", nothing); isnothing(__ovr_S_gated__initial) || (__initial_conditions[S_gated] = __ovr_S_gated__initial)
+  __ovr_S_gated__guess = pop!(__overrides, "S_gated__guess", nothing)
+  __ovr_S_eff = pop!(__overrides, "S_eff", nothing); isnothing(__ovr_S_eff) || push!(__eqs, S_eff ~ __ovr_S_eff)
+  __ovr_S_eff__initial = pop!(__overrides, "S_eff__initial", nothing); isnothing(__ovr_S_eff__initial) || (__initial_conditions[S_eff] = __ovr_S_eff__initial)
+  __ovr_S_eff__guess = pop!(__overrides, "S_eff__guess", nothing)
+  __ovr_lit = pop!(__overrides, "lit", nothing); isnothing(__ovr_lit) || push!(__eqs, lit ~ __ovr_lit)
+  __ovr_lit__initial = pop!(__overrides, "lit__initial", nothing); isnothing(__ovr_lit__initial) || (__initial_conditions[lit] = __ovr_lit__initial)
+  __ovr_lit__guess = pop!(__overrides, "lit__guess", nothing)
 
   ### Constants
   __constants = Any[]
 
   ### Components
-  push!(__systems, @named port_wall = __Dyad__HeatPort())
+  push!(__systems, @named port_Sky = __Dyad__HeatPort())
+  push!(__systems, @named port_Air = __Dyad__HeatPort())
+  push!(__systems, @named port_Wall = __Dyad__HeatPort())
+  push!(__systems, @named port_Transmission = __Dyad__HeatPort())
+  # Subcomponent rad_sky of type ThermalComponents.Components.BodyRadiation
+  rad_sky_overrides = __pop_subcomponent_overrides!(__overrides, "rad_sky")
+  push!(__systems, @named rad_sky = ThermalComponents.Components.BodyRadiation(; Gr=vieFacSky * epsilon * Surf, rad_sky_overrides...))
+  # Subcomponent rad_air of type ThermalComponents.Components.BodyRadiation
+  rad_air_overrides = __pop_subcomponent_overrides!(__overrides, "rad_air")
+  push!(__systems, @named rad_air = ThermalComponents.Components.BodyRadiation(; Gr=(1 - vieFacSky) * epsilon * Surf, rad_air_overrides...))
+  # Subcomponent conv of type DyadShip.Thermal.ExternalConvection
+  conv_overrides = __pop_subcomponent_overrides!(__overrides, "conv")
+  push!(__systems, @named conv = DyadShip.Thermal.ExternalConvection(; Surf=Surf, Norm=Norm, conv_overrides...))
+  # Subcomponent irr of type DyadShip.Thermal.IrradiationOnPlane
+  irr_overrides = __pop_subcomponent_overrides!(__overrides, "irr")
+  push!(__systems, @named irr = DyadShip.Thermal.IrradiationOnPlane(; irr_overrides...))
+  # Subcomponent screen of type DyadShip.Thermal.SunScreen
+  screen_overrides = __pop_subcomponent_overrides!(__overrides, "screen")
+  push!(__systems, @named screen = DyadShip.Thermal.SunScreen(; WindowHeight=WallHeight, d=d, h=h_screen, screen_overrides...))
+  # Subcomponent absorbed of type ThermalComponents.Sources.PrescribedHeatFlow
+  absorbed_overrides = __pop_subcomponent_overrides!(__overrides, "absorbed")
+  push!(__systems, @named absorbed = ThermalComponents.Sources.PrescribedHeatFlow(; absorbed_overrides...))
+  # Subcomponent transmitted of type ThermalComponents.Sources.PrescribedHeatFlow
+  transmitted_overrides = __pop_subcomponent_overrides!(__overrides, "transmitted")
+  push!(__systems, @named transmitted = ThermalComponents.Sources.PrescribedHeatFlow(; transmitted_overrides...))
 
   ### Check there are no unmatched overrides
   isempty(__overrides) || throw(ArgumentError("overrides: [$(join(keys(__overrides), ", "))] don't match names found in model. These names may exist in the model but could have been conditionally excluded."))
 
   ### Guesses
-  isnothing(__ovr_Q_solar__guess) || (__guesses[Q_solar] = __ovr_Q_solar__guess)
-  isnothing(__ovr_Q_conv__guess) || (__guesses[Q_conv] = __ovr_Q_conv__guess)
-  isnothing(__ovr_Q_rad__guess) || (__guesses[Q_rad] = __ovr_Q_rad__guess)
-  isnothing(__ovr_Q_total__guess) || (__guesses[Q_total] = __ovr_Q_total__guess)
+  isnothing(__ovr_S_gated__guess) || (__guesses[S_gated] = __ovr_S_gated__guess)
+  isnothing(__ovr_S_eff__guess) || (__guesses[S_eff] = __ovr_S_eff__guess)
+  isnothing(__ovr_lit__guess) || (__guesses[lit] = __ovr_lit__guess)
 
   ### Initialization Equations
 
@@ -160,11 +237,35 @@ Limitations vs upstream:
   __assertions = []
 
   ### Equations
-  push!(__eqs, Q_solar ~ alpha_abs * S_panel * shade_factor * A)
-  push!(__eqs, Q_conv ~ h_c * A * (T_air - port_wall.T))
-  push!(__eqs, Q_rad ~ epsilon * sigma * A * (T_sky ^ 4 - port_wall.T ^ 4))
-  push!(__eqs, Q_total ~ Q_solar + Q_conv + Q_rad)
-  push!(__eqs, port_wall.Q_flow ~ -Q_total)
+  push!(__eqs, irr.PlaneVector_x ~ Norm[1])
+  push!(__eqs, irr.PlaneVector_y ~ Norm[2])
+  push!(__eqs, irr.PlaneVector_z ~ Norm[3])
+  push!(__eqs, S_eff ~ S_gated * lit)
+  push!(__eqs, absorbed.Q_flow ~ alpha_abs * Surf * (1 - ShadowFactor) * S_eff)
+  push!(__eqs, transmitted.Q_flow ~ tau_trans * Surf * (1 - ShadowFactor) * GlassFactor * S_eff)
+  push!(__eqs, connect(port_Wall, rad_sky.port_a, rad_air.port_a, conv.solid, absorbed.port))
+  push!(__eqs, connect(rad_sky.port_b, port_Sky))
+  push!(__eqs, connect(rad_air.port_b, port_Air, conv.fluid))
+  push!(__eqs, connect(transmitted.port, port_Transmission))
+  push!(__eqs, connect(WindVector_x, conv.WindVector_x))
+  push!(__eqs, connect(WindVector_y, conv.WindVector_y))
+  push!(__eqs, connect(WindVector_z, conv.WindVector_z))
+  push!(__eqs, connect(SunVector_x, irr.SunVector_x))
+  push!(__eqs, connect(SunVector_y, irr.SunVector_y))
+  push!(__eqs, connect(SunVector_z, irr.SunVector_z))
+  push!(__eqs, connect(SunHeight, screen.SunHeight))
+
+  ### Control Structures
+  if OnOffSunIrrad
+    push!(__eqs, S_gated ~ ifelse(SunHeight >= minSunHeight, irr.Irradiance, 0))
+  else
+    push!(__eqs, S_gated ~ 0)
+  end
+  if UseSunScreen
+    push!(__eqs, lit ~ screen.SunCoeff)
+  else
+    push!(__eqs, lit ~ 1)
+  end
 
   # Return completely constructed System
   return System(__eqs, t, __vars, __params; systems=__systems, initial_conditions=__initial_conditions, guesses=__guesses, name, initialization_eqs=__initialization_eqs, bindings=__bindings, assertions=__assertions)

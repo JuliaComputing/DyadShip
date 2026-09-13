@@ -128,6 +128,12 @@ commands through `~/dyad-fleet/heavy` on this machine.
 # Manoeuvring validation report + figures
 ../julia-dyad.sh scripts/validate_6dof.jl
 
+# Convection factors, external wall, ship compartment and the weather boundary
+../julia-dyad.sh scripts/validate_heattransfer.jl
+
+# Electrical load analysis and rainflow counting
+../julia-dyad.sh scripts/validate_machinery.jl
+
 # Planar transit animations
 ../julia-dyad.sh scripts/render_all.jl
 
@@ -159,10 +165,20 @@ heading_deg = rad2deg.(res.sol[m.ship.Yaw])
 - `dyad/Ship6DOF/` — 6-DOF ship stack, analyses, `definitions.jl` (Wageningen
   polynomials, four-quadrant Fourier sets, draft polynomials).
 - `dyad/Ship/`, `dyad/Propulsion/` — planar stack, Flettner rotor, transits.
-- `dyad/Machinery/` — on-off consumer, continuous peak sampler and the
-  event-driven `EventPeakSampler` built on `DiscreteComponents` clocks.
+- `dyad/Machinery/` — on-off consumer, the seeded clocked `RandomStart` scheduler
+  and the `ElectricalLoad` bank that make up a ship's electrical power load
+  analysis, plus the continuous peak sampler and the event-driven
+  `EventPeakSampler` built on `DiscreteComponents` clocks.
 - `dyad/Thermal/` — solar irradiation, sun screen, plate and cylinder
-  transients, temperature dataset, air exchanger.
+  transients, temperature dataset, air exchanger, the four convection factors
+  (horizontal cylinder, forced flat plate, internal and external wall surfaces)
+  on `ThermalComponents.Interfaces.ConvectiveElement1D`, and `ConvRadSunWall`,
+  an external wall composing those with two view-factor-split
+  `ThermalComponents.BodyRadiation` paths, `IrradiationOnPlane` and `SunScreen`.
+  `dyad/Thermal/ShipCompartment.dyad` is a moist-air compartment behind
+  weather-exposed bulkheads whose film coefficients are those convection
+  factors rather than fixed `U` values, so its heat loss follows the ship's
+  apparent wind.
 - `dyad/MoistAir/` — `SourceMoistAir` and `DewTemperature` on the
   `HVACComponents` moist-air medium (`MoistAirFluidPort`).
 - `dyad/Environment.dyad`, `VariableEnvironment.dyad`, `ApparentSpeedXY.dyad` —
@@ -171,8 +187,9 @@ heading_deg = rad2deg.(res.sol[m.ship.Yaw])
   validation figures, animations.
 - `scripts/` — validation, rendering and WaterLily characterisation scripts
   (`scripts/Project.toml` carries the WaterLily/CUDA dependencies).
-- `src/DyadShip.jl`, `ext/FlettnerCFDLiveExt.jl` — Julia module wrapper and
-  the live-CFD extension.
+- `src/DyadShip.jl`, `src/Rainflow.jl`, `ext/FlettnerCFDLiveExt.jl` — Julia
+  module wrapper, rainflow cycle counting and Miner damage over the turning
+  points `EventPeakSampler` emits, and the live-CFD extension.
 - `PORTING_NOTES.md` — port status, conventions, corrections relative to upstream.
 - `AGENTS.md` — toolchain notes and Dyad/MTK learnings for agents.
 

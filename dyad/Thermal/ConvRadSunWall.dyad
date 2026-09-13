@@ -1,57 +1,154 @@
 """
-External wall heat-transfer block: sun irradiation + radiation + wind convection.
+External wall: solar gain, long-wave radiation to sky and air, and wind convection.
 
-Simplified port of `ShipSIM.Components.Others.HeatTransfer.ConvRadSunWall`. The upstream
-model wired together internal sub-components from `Components.Others.HeatTransfer.Internal.*`
-(BodyRadiation, FreeConvection, ConvRadSimplified) plus our `IrradiationOnPlane` and
-`SunScreen` ports. Without those sub-libraries on hand, this version implements the
-combined heat flux directly:
+Full port of `ShipSIM.Components.Others.HeatTransfer.ConvRadSunWall`, composed from the
+same sub-components upstream composes it from. The earlier port here flattened the whole
+model into one algebraic heat flux and took the convective coefficient as a real input,
+because those sub-components were not available; they now are. Its ports are gone — this
+component takes the environment directly (sun vector, sun height, wind vector) rather than
+a precomputed irradiance and film coefficient.
 
-```math
-Q_\\mathrm{net} = \\alpha_\\mathrm{abs} \\cdot S_\\mathrm{eff} \\cdot \\sigma_\\mathrm{shade} \\cdot A
-                + h_c \\cdot A \\cdot (T_\\mathrm{air} - T_\\mathrm{wall})
-                + \\varepsilon \\sigma A (T_\\mathrm{sky}^4 - T_\\mathrm{wall}^4)
-```
+Four heat paths reach `port_Wall`:
 
-where:
-- `S_eff` is the irradiance on the wall plane (real input — typically computed via the
-  separately-ported `IrradiationOnPlane`).
-- `sigma_shade` is the un-shaded fraction (0..1, real input — typically from `SunScreen`).
-- `h_c` is the convective heat-transfer coefficient (real input — wind-dependent).
-- `T_air` and `T_sky` are the ambient and effective sky temperatures (real inputs).
+- **Long-wave to sky**, `ThermalComponents.Components.BodyRadiation` with
+  `Gr = vieFacSky · epsilon · Surf`.
+- **Long-wave to air**, a second `BodyRadiation` with the complementary view factor
+  `Gr = (1 - vieFacSky) · epsilon · Surf`. Splitting the surface's radiation between a
+  cold sky and the ambient air by view factor is the part the flattened version lost:
+  it radiated the whole surface to the sky, which overstates night-time cooling on a
+  vertical wall by a factor of two.
+- **Convection**, `ExternalConvection` (Nusselt–Jürges with the windward/leeward factor),
+  between the wall and `port_Air`.
+- **Absorbed solar**, a `PrescribedHeatFlow` injecting
+  `alpha_abs · Surf · (1 - ShadowFactor) · S_eff`.
 
-The component has one HeatPort `port_wall` connecting to the wall material's outermost
-node (typically the boundary of a `PlateTransient`).
+and a fifth leaves through `port_Transmission`, the glazed fraction's share passing
+*through* the wall into the space behind it,
+`tau_trans · Surf · (1 - ShadowFactor) · GlassFactor · S_eff`.
 
-Limitations vs upstream:
-- Wall area `A`, absorptivity `alpha_abs`, emissivity `epsilon` exposed as parameters.
-  No automatic computation from `Length × Height`-style geometry — caller supplies `A`.
-- Sun-screen and IrradianceOnPlane wiring is the caller's responsibility (this Dyad
-  block consumes their *outputs*, not their internal frames).
+`S_eff` is the plane irradiance from `IrradiationOnPlane` (given the sun vector and the
+surface normal), gated by `minSunHeight` — grazing sun is not counted, as upstream — and
+multiplied by the lit fraction `SunScreen` reports for an overhang above the wall.
+
+All four heat ports are acausal and must be connected; `port_Transmission` in particular,
+since the transmitted flux is prescribed and an unconnected port would force it to zero.
+
+The wind and sun vectors arrive as scalar inputs, as they do elsewhere in this package
+(`IrradiationOnPlane`, `ExternalConvection`); Dyad has no array connectors.
+
+Deviations from upstream:
+
+- `UseSunScreen` bypasses the overhang, setting the lit fraction to 1. Upstream has no
+  such switch and defaults the screen geometry to `d = 0, h = 0`, at which its own
+  `atan(h/d)` is `0/0`. A wall with no overhang is the common case and needs a way to say
+  so.
+- Renamed parameters: upstream's `e` is `epsilon`, `ab` is `alpha_abs`, `tr` is
+  `tau_trans`, and the sun screen's `h` is `h_screen` — a bare `h` next to a wall model
+  reads as a film coefficient.
+- `vieFacSky` defaults to 0.5, the vertical-wall value (a roof is 1). Upstream requires it.
 """
 component ConvRadSunWall
-  parameter A::Area = 1.0
-  parameter alpha_abs::Real = 0.7    # solar absorptivity, 0..1
-  parameter epsilon::Real = 0.9       # IR emissivity, 0..1
-  "Stefan-Boltzmann constant [W/(m²·K⁴)]"
-  parameter sigma::Real = 5.670374e-8
+  "Wind vector, east component — points the way the wind travels [m/s]"
+  WindVector_x = RealInput()
+  "Wind vector, north component [m/s]"
+  WindVector_y = RealInput()
+  "Wind vector, up component [m/s]"
+  WindVector_z = RealInput()
+  "Sun ray direction, east component, with the irradiance as its modulus [W/m²]"
+  SunVector_x = RealInput()
+  "Sun ray direction, north component [W/m²]"
+  SunVector_y = RealInput()
+  "Sun ray direction, up component [W/m²]"
+  SunVector_z = RealInput()
+  "Solar altitude above the horizon [deg]"
+  SunHeight = RealInput()
 
-  S_panel = RealInput()    # irradiance on the wall plane [W/m²]
-  shade_factor = RealInput()
-  h_c = RealInput()
-  T_air = RealInput()
-  T_sky = RealInput()
+  "Effective sky temperature, for the long-wave balance"
+  port_Sky = HeatPort()
+  "Ambient air, for convection and the air-side long-wave balance"
+  port_Air = HeatPort()
+  "Outer face of the wall material"
+  port_Wall = HeatPort()
+  "Space behind the wall, receiving the flux transmitted through the glazed fraction"
+  port_Transmission = HeatPort()
 
-  port_wall = HeatPort()
+  "Wall height, the vertical extent the sun screen shades [m]"
+  parameter WallHeight::Length
+  "Wall surface area [m²]"
+  parameter Surf::Area
+  "Outward surface normal, pointing away from the wall"
+  parameter Norm::Real[3] = [0, -1, 0]
 
-  variable Q_solar::HeatFlowRate
-  variable Q_conv::HeatFlowRate
-  variable Q_rad::HeatFlowRate
-  variable Q_total::HeatFlowRate
+  "Whether an overhang shades the wall; false makes the lit fraction 1"
+  structural parameter UseSunScreen::Boolean = false
+  "Horizontal distance from the overhang to the wall plane [m]"
+  parameter d::Length = 1.0
+  "Vertical distance from the upper wall edge to the overhang, positive upward [m]"
+  parameter h_screen::Length = 0.5
+
+  "View factor from the surface to the sky (0.5 for a vertical wall, 1 for a roof)"
+  parameter vieFacSky::Real(min = 0, max = 1) = 0.5
+  "Surface long-wave emissivity"
+  parameter epsilon::Real(min = 0, max = 1) = 0.9
+
+  "Whether solar irradiation is counted at all"
+  structural parameter OnOffSunIrrad::Boolean = true
+  "Solar altitude below which irradiation is not counted [deg]"
+  parameter minSunHeight::Real = 10
+  "Surface solar absorptance"
+  parameter alpha_abs::Real(min = 0, max = 1) = 0.7
+  "Surface solar transmittance"
+  parameter tau_trans::Real(min = 0, max = 1) = 0.0
+  "Glazed fraction of the wall area, which is what transmits"
+  parameter GlassFactor::Real(min = 0, max = 1) = 0.75
+  "Global shadow factor: 0 = unshaded, 1 = fully shaded. Do not duplicate the sun screen here."
+  parameter ShadowFactor::Real(min = 0, max = 1) = 0
+
+  rad_sky = ThermalComponents.Components.BodyRadiation(Gr = vieFacSky * epsilon * Surf)
+  rad_air = ThermalComponents.Components.BodyRadiation(Gr = (1 - vieFacSky) * epsilon * Surf)
+  conv = ExternalConvection(Surf = Surf, Norm = Norm)
+  irr = IrradiationOnPlane()
+  screen = SunScreen(WindowHeight = WallHeight, d = d, h = h_screen)
+  absorbed = ThermalComponents.Sources.PrescribedHeatFlow()
+  transmitted = ThermalComponents.Sources.PrescribedHeatFlow()
+
+  "Plane irradiance after the sun-height gate [W/m²]"
+  variable S_gated::Real
+  "Plane irradiance reaching the wall, after gating and shading [W/m²]"
+  variable S_eff::Real
+  "Lit fraction of the wall, 0 = fully shaded"
+  variable lit::Real
 relations
-  Q_solar = alpha_abs * S_panel * shade_factor * A
-  Q_conv = h_c * A * (T_air - port_wall.T)
-  Q_rad = epsilon * sigma * A * (T_sky^4 - port_wall.T^4)
-  Q_total = Q_solar + Q_conv + Q_rad
-  port_wall.Q_flow = -Q_total
+  connect(port_Wall, rad_sky.port_a, rad_air.port_a, conv.solid, absorbed.port)
+  connect(rad_sky.port_b, port_Sky)
+  connect(rad_air.port_b, port_Air, conv.fluid)
+  connect(transmitted.port, port_Transmission)
+
+  connect(WindVector_x, conv.WindVector_x)
+  connect(WindVector_y, conv.WindVector_y)
+  connect(WindVector_z, conv.WindVector_z)
+  connect(SunVector_x, irr.SunVector_x)
+  connect(SunVector_y, irr.SunVector_y)
+  connect(SunVector_z, irr.SunVector_z)
+  connect(SunHeight, screen.SunHeight)
+
+  irr.PlaneVector_x = Norm[1]
+  irr.PlaneVector_y = Norm[2]
+  irr.PlaneVector_z = Norm[3]
+
+  if OnOffSunIrrad
+    S_gated = ifelse(SunHeight >= minSunHeight, irr.Irradiance, 0)
+  else
+    S_gated = 0
+  end
+
+  if UseSunScreen
+    lit = screen.SunCoeff
+  else
+    lit = 1
+  end
+
+  S_eff = S_gated * lit
+  absorbed.Q_flow = alpha_abs * Surf * (1 - ShadowFactor) * S_eff
+  transmitted.Q_flow = tau_trans * Surf * (1 - ShadowFactor) * GlassFactor * S_eff
 end

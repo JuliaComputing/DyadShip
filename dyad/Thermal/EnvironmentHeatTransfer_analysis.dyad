@@ -1,0 +1,49 @@
+"""
+A day of weather through `EnvironmentHeatTransfer`: a clear morning, a cloudy afternoon,
+and the sky temperature and dew point that follow.
+
+The measured irradiance is the clear-sky value from a reference `SolarIrradiation` times a
+cloud factor that steps from 1.0 (clear) to 0.35 (heavy cloud) at 13:00, so the component
+has to pick the cover up from the shortfall alone. Air temperature swings 5 °C to 15 °C
+over the day at 70 % relative humidity, with a 5 m/s wind from due south.
+
+What the run should show: `CloudRatio` near 0 through the clear morning, rising to about
+0.65 an averaging window after the step, and held at its last daytime value through the
+night; the sky several tens of kelvin below the air under clear sky and much closer to it
+under cloud; a wind vector pointing due north, because the wind comes *from* the south.
+"""
+test component WeatherDay
+  parameter latitude::Angle = 0.7579392485634024
+  parameter day_of_year::Real = 172
+
+  clear_sky = SolarIrradiation(latitude = latitude, day_of_year = day_of_year)
+  cloud_factor = BlockComponents.Sources.Step(height = -0.65, offset = 1.0, start_time = 46800.0)
+  air_temp = BlockComponents.Sources.Sine(amplitude = 5.0, frequency = 1 / 86400,
+                                          offset = 283.15, phase = -1.5707963267948966)
+  humidity = BlockComponents.Sources.Constant(k = 0.7)
+  wind_speed = BlockComponents.Sources.Constant(k = 5.0)
+  wind_dir = BlockComponents.Sources.Constant(k = 180.0)
+
+  env = EnvironmentHeatTransfer(latitude = latitude, day_of_year = day_of_year,
+                                dt = 60.0, N_avg = 30)
+
+  sky_sink = ThermalComponents.Sources.FixedHeatFlow(Q_flow = 0)
+  air_sink = ThermalComponents.Sources.FixedHeatFlow(Q_flow = 0)
+
+  "Measured global horizontal irradiance [W/m²]"
+  variable G_meas::Real
+relations
+  G_meas = clear_sky.IrradianceOnPanel * cloud_factor.y
+  env.G_meas = G_meas
+  connect(air_temp.y, env.T_air)
+  connect(humidity.y, env.RH)
+  connect(wind_speed.y, env.WindSpeed)
+  connect(wind_dir.y, env.WindDir)
+  connect(env.Sky_Temp, sky_sink.port)
+  connect(env.Air_Temp, air_sink.port)
+end
+
+analysis WeatherDayTransient
+  extends TransientAnalysis(stop = 86400.0)
+  model = WeatherDay()
+end
