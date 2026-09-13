@@ -98,15 +98,6 @@ signal's derivative — and `src/Rainflow.jl` consumes that series.
 - `ShipWind` normalises the lateral force with `A_T`; the port uses `A_L`
   (Fujiwara's definition). The lateral force and yaw moment keep the upstream
   minus signs.
-- `Thermal.definitions.jl:sun_vector_world` returned the northward component of the
-  direction *to* the sun while negating the other two, so the sun stood in the northern
-  sky: a south-facing wall was lit at dawn and dusk and dark at noon. All three
-  components are now negated. Only `SunVector_y` was affected, and until
-  `ConvRadSunWall` was rebuilt nothing consumed it (`SolarIrradiation.IrradianceOnPanel`
-  uses the vertical component only), so no earlier result changes. The two
-  `SunWallDay` solstices are the regression check: in winter the south wall takes the
-  whole gain and the north wall none, in summer the north wall is lit at dawn and dusk
-  and the south wall only weakly at noon.
 - `Rudder`: the effective angle of attack is `α = δ - γ_R β_R`, so a drift
   angle reduces the effective rudder angle in a turn and a centred rudder
   produces the restoring fin force. Both the previous planar port (and, read
@@ -218,16 +209,34 @@ Installing it precompiles a Lustre toolchain (`Heptagon_jll`,
   - `MediaComponents` / `FluidComponents` (general media and distributed
     pipes) exist but are earlier-stage (`kernel = 3.3.0-rc4`, water only).
 
+## Defects in this port, not in upstream
+
+- `Thermal.definitions.jl:sun_vector_world` returned the northward component of the
+  direction *to* the sun while negating the other two, so the sun stood in the northern
+  sky: a south-facing wall was lit at dawn and dusk and dark at noon. Upstream is correct
+  — `SolarIrradiation` line 139 is
+  `SunVector = {-cos(h)*sin(A), -cos(h)*cos(A), -sin(h)} * RealIrradiance`, all three
+  negated — so this was introduced when the helper was rewritten in Julia. All three
+  components are now negated and the port matches upstream's form exactly. Only
+  `SunVector_y` was affected and nothing consumed it before `ConvRadSunWall` was rebuilt
+  (`SolarIrradiation.IrradianceOnPanel` uses the vertical component only), so no earlier
+  result changes. The two `SunWallDay` solstices are the regression check.
+- Planar `HullMMG`'s added-mass cross terms had both signs flipped and were divided by
+  100 (fixed in an earlier pass; see the corrections list for what upstream actually
+  says).
+
 ## Component-library findings (September 2026)
 
 From building `Thermal.ShipCompartment` on `HVACComponents` 0.3.0 and `ThermalComponents`
 2.0.5:
 
 - **A `MultiportVolume` will not initialise when its moist-air fluid boundary is below
-  about 15 °C.** Minimal reproducer, no component of ours in it: a `MultiportVolume`
-  (N_ports = 2, N_heat = 1), a `Boundary_pTPhi` and a flow source, heat port on a
-  `FixedHeatFlow`. With the boundary and supply air at 20 °C it solves; at 10 °C and below
-  it returns `InitialFailure`, and so does `MultiportLumpedRoom` built the same way. It is
+  about 15 °C.** Minimal reproducer, library components only: a `MultiportVolume`
+  (`N_ports = 2`, `N_heat = 1`, `V_tot = 200`, started at 20 °C) between a
+  `MassFlowSource_TPhi` and a `Boundary_pTPhi`, both heat ports on `FixedHeatFlow(0)`.
+  With both boundaries at 20 °C it solves; at 0 °C it returns `InitialFailure`. The
+  threshold is between 10 °C and 15 °C, and `MultiportLumpedRoom` built the same way fails
+  identically. It is
   the *boundary* temperature that decides it, not the volume's start state (a volume
   starting at 0 °C with 20 °C air is fine) and not the gap between them. The medium's own
   property functions are healthy down to at least −5 °C — `massFraction_pTϕ`, `h_pTX`,
