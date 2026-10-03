@@ -117,8 +117,10 @@ pointwise and does not depend on `automatic_discontinuity_detection`, whose
 events miss a condition that starts exactly on its threshold (an engine
 starting at zero power).
 `scripts/validate_engine_fuel.jl` checks the forward ramp against the
-previous numbers, a reversing shaft imposed by a velocity source, a stopped
-shaft with and without idle fuel, the sampling behaviour and the rejected
+previous numbers, a reversing shaft imposed by a velocity source, a run held
+inside the SFOC table from start to end (`DieselEngineInRange`, synthetic
+load, rate samples reconciled with the counter), a stopped shaft with and
+without idle fuel, the sampling behaviour and the rejected
 parameter values.
 
 The `FlettnerRotor` component reads `Cl(ξ)`, `Cd(ξ)` from

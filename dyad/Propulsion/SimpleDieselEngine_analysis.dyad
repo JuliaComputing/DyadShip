@@ -77,3 +77,34 @@ analysis SimpleDieselEngineIdleTransient
   extends TransientAnalysis(stop = 100.0)
   model = DieselEngineIdle()
 end
+
+"""
+Engine held inside its SFOC table for a whole run. Constant 1800 RPM demand on a shaft
+that starts at 1500 RPM; the damper takes 799 kW at 1800 RPM. The torque limit is reached
+at once, so the brake power starts at 864 kW and stays between 639 and 1121 kW, inside
+the 605–1210 kW table: `SFOC_valid` is 1 throughout and `Fuel_extrapolated` stays at
+exactly zero. The rate has no kink and the coverage flag no jump in this run, so no
+`tstops` are needed; sample the counters at the accepted steps.
+
+The load is synthetic and the SFOC table is the default upstream reference table, not an
+OEM calibration; `m_dot_idle` is zero.
+"""
+test component DieselEngineInRange
+  engine = SimpleDieselEngine()
+  inertia = RotationalComponents.Components.Inertia(J = 50)
+  ground = RotationalComponents.Components.Damper(d = 22.5)   # acts as a load
+  fixed = RotationalComponents.Components.Fixed()
+  demand = BlockComponents.Sources.Constant(k = 1800)
+relations
+  initial inertia.phi = 0
+  initial inertia.w = 1500 * 2 * π / 60
+  connect(demand.y, engine.RPM_demand)
+  connect(engine.flange, inertia.spline_a)
+  connect(inertia.spline_b, ground.spline_a)
+  connect(ground.spline_b, fixed.spline)
+end
+
+analysis SimpleDieselEngineInRangeTransient
+  extends TransientAnalysis(stop = 30.0)
+  model = DieselEngineInRange()
+end

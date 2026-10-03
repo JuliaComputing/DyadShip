@@ -6,7 +6,7 @@
 # engine produced before fuel was restricted to the brake power (identical by
 # construction for forward operation).
 #
-# Runs the three engine analyses only; never the generated test suite.
+# Runs the four engine analyses only; never the generated test suite.
 #
 # Usage:  julia --project=<environment with DyadShip> scripts/validate_engine_fuel.jl
 
@@ -193,6 +193,42 @@ end
     @test successful_retcode(reson.sol)
     @test all(diff(Fon) .>= 0)
     @printf("  with tstops: saveat grid %d decreases\n", count(diff(Fon) .< 0))
+end
+
+@testset "whole run inside the SFOC table" begin
+    res = PR.SimpleDieselEngineInRangeTransient(); sol = res.sol; e = symbolic_container(res).engine
+    @test successful_retcode(sol)
+    # Everything below is read at the accepted steps.
+    ts = sol.t; P = sol[e.ShaftPower] ./ 1000; mdot = sol[e.Inst_Fuel]; F = sol[e.Fuel]
+    # Table coverage for the whole interval: flag, power range, and the interval counter.
+    @test all(sol[e.SFOC_valid] .== 1)
+    @test all(605 .<= P .<= 1210)
+    @test all(sol[e.Fuel_extrapolated] .== 0)
+    @test all(diff(F) .>= 0)
+    @test F[1] == 0
+    # Steady state: 1800 rpm, rate = SFOC · kW / 3.6e6 with the SFOC inside the table.
+    @test sol[e.rpm][end] ≈ 1800 rtol = 1e-6
+    @test 178 < sol[e.sfoc][end] < 185
+    @test mdot[end] ≈ sol[e.sfoc][end] * P[end] / 3.6e6 rtol = 1e-12
+    # Counter against a tight-tolerance run, at the tolerance the analysis requests.
+    ref = PR.SimpleDieselEngineInRangeTransient(abstol = 1e-10, reltol = 1e-10)
+    @test successful_retcode(ref.sol)
+    Fref = ref.sol[symbolic_container(ref).engine.Fuel][end]
+    @test F[end] ≈ Fref rtol = 1e-6
+    # Rate against counter. The trapezoid of the rate samples differs from the counter
+    # by the quadrature error of the trapezoid rule on these steps, which is estimated
+    # by comparing it with Simpson's rule on the same steps (midpoint rate from the dense
+    # output). The gap must stay within twice that estimate plus the solver tolerance on
+    # the counter; no bound is fitted to the result.
+    T = trapz(ts, mdot)
+    S = sum((ts[i + 1] - ts[i]) * (mdot[i] + 4 * sol((ts[i] + ts[i + 1]) / 2; idxs = e.Inst_Fuel) + mdot[i + 1]) / 6
+            for i in 1:length(ts) - 1)
+    @test abs(T - F[end]) <= 2 * abs(T - S) + 1e-6 * F[end]
+    @test abs(S - F[end]) <= abs(T - F[end])
+    @printf("  in range: %d accepted steps, power %.1f .. %.1f kW, Fuel(30) = %.8f kg (tight-tolerance run %.8f)\n",
+        length(ts), minimum(P), maximum(P), F[end], Fref)
+    @printf("  in range: trapezoid - counter = %.3e kg, Simpson - counter = %.3e kg, quadrature estimate |T - S| = %.3e kg\n",
+        T - F[end], S - F[end], abs(T - S))
 end
 
 @testset "stopped shaft with idle fuel" begin
