@@ -4,8 +4,6 @@
 ### Instead, update the Dyad source code and regenerate this file
 
 
-import Moshi as __Ext__Moshi
-
 @doc Markdown.doc"""
    RandomStart(; name, dt, seed, StartsHour, dev, duty, t_first)
 

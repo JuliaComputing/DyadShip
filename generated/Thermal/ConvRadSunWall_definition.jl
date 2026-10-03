@@ -4,8 +4,6 @@
 ### Instead, update the Dyad source code and regenerate this file
 
 
-import Moshi as __Ext__Moshi
-
 @doc Markdown.doc"""
    ConvRadSunWall(; name, UseSunScreen, OnOffSunIrrad, WallHeight, Surf, Norm, d, h_screen, vieFacSky, epsilon, minSunHeight, alpha_abs, tau_trans, GlassFactor, ShadowFactor)
 

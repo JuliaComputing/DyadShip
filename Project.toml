@@ -31,22 +31,22 @@ WaterLily = "ed894a53-35f9-47f1-b17f-85db9237eebd"
 FlettnerCFDLiveExt = ["WaterLily"]
 
 [compat]
-BlockComponents = "=4.5.1"
-DiscreteComponents = "0.2.0"
+BlockComponents = "=4.6.0"
+DiscreteComponents = "0.5.1"
 DyadData = "2.0.1"
-DyadInterface = "7.2"
-ElectricalComponents = "=2.2.1"
+DyadInterface = "7.3"
+ElectricalComponents = "=2.2.2"
 HVACComponents = "0.3.0"
 HypertextLiteral = "1.0.0"
 IncompressibleFlowComponents = "0.1.0"
 Markdown = "1"
-MultibodyComponents = "=0.2.4"
-RotationalComponents = "=2.5.4"
-ThermalComponents = "=2.0.5"
-TranslationalComponents = "=2.5.0"
+MultibodyComponents = "=0.2.5"
+RotationalComponents = "=2.5.5"
+ThermalComponents = "=2.0.6"
+TranslationalComponents = "=2.5.1"
 
 [dyad]
-kernel = "3.3.0"
+kernel = "3.4.0"
 
 [extras]
 CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"

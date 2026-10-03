@@ -4,8 +4,6 @@
 ### Instead, update the Dyad source code and regenerate this file
 
 
-import Moshi as __Ext__Moshi
-
 @doc Markdown.doc"""
    ShipWind(; name, Loa, B, Draft, A_T, A_L, A_0D, C, C_BR, H_BR, H_C, AirDensity, X_0, X_1, X_3, X_5, Y_1, Y_3, Y_5, N_1, N_2, N_3)
 

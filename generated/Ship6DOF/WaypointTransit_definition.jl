@@ -4,8 +4,6 @@
 ### Instead, update the Dyad source code and regenerate this file
 
 
-import Moshi as __Ext__Moshi
-
 @doc Markdown.doc"""
    WaypointTransit(; name, U0, J_shaft, rpm_full, wind_speed, wind_direction)
 

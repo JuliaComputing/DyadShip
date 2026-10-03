@@ -23,10 +23,10 @@ The wrapper sets the environment this project requires:
 
 - `JULIAUP_DEPOT_PATH=~/.julia/juliaup-depots/juliahub.com`
 - `JULIAUP_SERVER=https://juliahub.com/juliabin`
-- `JULIAUP_CHANNEL=dyad-3.3.0`
+- `JULIAUP_CHANNEL=dyad-3.4.0`
 - `JULIA_PKG_SERVER=juliahub.com`
 
-It launches the `dyad-3.3.0` channel and uses `--project=@.` so the active directory's project is used. Any extra args are forwarded.
+It launches the `dyad-3.4.0` channel and uses `--project=@.` so the active directory's project is used. Any extra args are forwarded.
 
 Examples:
 
@@ -38,7 +38,7 @@ Examples:
 
 ## Running Dyad
 
-Use `../dyad.sh` (i.e. `/home/pgeorgakopoulos/dyad-ship/dyad.sh`) to invoke the Dyad CLI. It runs `npx --yes @juliacomputing/dyad-cli@3.3.0` (GitHub Packages registry, token in `~/.npmrc`) and forwards all arguments verbatim.
+Use `../dyad.sh` (i.e. `/home/pgeorgakopoulos/dyad-ship/dyad.sh`) to invoke the Dyad CLI. It runs `npx --yes @juliacomputing/dyad-cli@3.4.0` (GitHub Packages registry, token in `~/.npmrc`) and forwards all arguments verbatim.
 
 Examples:
 
@@ -48,17 +48,22 @@ Examples:
 ../dyad.sh render <component>      # render a model
 ```
 
-## Toolchain pins (dyad-3.3.0)
+## Toolchain pins (dyad-3.4.0)
 
-The `dyad-3.3.0` channel's sysimage bakes in BlockComponents 4.5.1,
-RotationalComponents 2.5.4, TranslationalComponents 2.5.0, ThermalComponents
-2.0.5, ElectricalComponents 2.2.1 and DyadInterface 7.2.1; `Project.toml`
+The `dyad-3.4.0` channel's sysimage bakes in BlockComponents 4.6.0,
+RotationalComponents 2.5.5, TranslationalComponents 2.5.1, ThermalComponents
+2.0.6, ElectricalComponents 2.2.2 and DyadInterface 7.3.0; `Project.toml`
 must pin exactly those (Pkg reports "package in sysimage!" otherwise).
-`MultibodyComponents` is not in the sysimage and resolves freely (0.2.4 at
+`MultibodyComponents` is not in the sysimage and resolves freely (0.2.5 at
 the time of writing, with the 3D library). Bundled library sources live under
-`<juliaup>/julia-1.12.7+dyad-3x3x0…/share/julia/stdlib/v1.12/<Lib>/dyad/`.
+`<juliaup>/julia-1.12.7+dyad-3x4x0…/share/julia/stdlib/v1.12/<Lib>/dyad/`.
 `RotationalComponents.Sources.SpeedSource` is deprecated in favour of
 `VelocitySource` (same ports).
+
+`dyad compile` takes its Julia channel from `julia.executablePath` in
+`.vscode/settings.json`, not from `JULIAUP_CHANNEL`; keep that file on the
+same channel as the wrappers or the compile fails with "`dyad-<old>` is not
+installed".
 
 ## TASK (DONE)
 
@@ -100,7 +105,7 @@ A prior autonomous session ported 18 ShipSIM components into Dyad and validated 
   - For peak/zero-crossing samplers: skip and put in `HARD.md`. A `PeriodicSample`-style block (if/when one lands) might cover a subset.
 - **Algebraic `if/elseif/else` chains in Modelica equations must become nested `ifelse(...)`.** Dyad has no algebraic `if/elseif`, only the `ifelse(cond, a, b)` function. For a 4-branch piecewise (e.g. SunScreen, max-torque-vs-RPM, SFOC) the nesting can get deep — write the data points inline as parameters and order branches by ascending threshold to keep it readable.
 - **`Modelica.Blocks.Tables.CombiTable*` doesn't have a default-data shortcut in Dyad.** `BlockComponents.Tables.Interpolation` requires a `DyadData.DyadTimeseries` or 2D table from a CSV. For small fixed-data tables (< ~10 points) it's much simpler to inline the table as nested `ifelse` piecewise-linear, rather than ship a CSV. Reserve CSV-driven tables for ≥ 50-row datasets.
-- **`dyad.sh` now exports the four `JULIAUP_*` / `JULIA_PKG_SERVER` env vars internally** so `../dyad.sh compile` runs cleanly. (Earlier the wrapper only `exec`'d node, and the dyad CLI's spawned `julia` failed with `ERROR: Invalid Juliaup channel \`dyad-3.0.0-rc5\`` unless the caller pre-exported them.) If you ever need to debug or override, the env block lives in `/home/pgeorgakopoulos/dyad-ship/dyad.sh` next to the `exec npx --yes @juliacomputing/dyad-cli@3.3.0 "$@"` line — keep it in sync with `julia-dyad.sh`. Compile output is still noisy on stderr (the JuliaHub banner); `generated/*.jl` mtime is the authoritative success signal.
+- **`dyad.sh` now exports the four `JULIAUP_*` / `JULIA_PKG_SERVER` env vars internally** so `../dyad.sh compile` runs cleanly. (Earlier the wrapper only `exec`'d node, and the dyad CLI's spawned `julia` failed with `ERROR: Invalid Juliaup channel \`dyad-3.0.0-rc5\`` unless the caller pre-exported them.) If you ever need to debug or override, the env block lives in `/home/pgeorgakopoulos/dyad-ship/dyad.sh` next to the `exec npx --yes @juliacomputing/dyad-cli@3.4.0 "$@"` line — keep it in sync with `julia-dyad.sh`. Compile output is still noisy on stderr (the JuliaHub banner); `generated/*.jl` mtime is the authoritative success signal.
 - **MTK index reduction can choke on `der(...)` inside an algebraic floor like `sqrt(der(x)^2 + ε^2)`.** The first `Propeller1Q` had `(I+Ia)·der(w_eff) = flange.tau - Torque_Kq` with `w_eff = sqrt(der(flange.phi)^2 + w_floor^2)`. MTK saw two derivative orders of `phi` and reported `ExtraVariablesSystemException: 3 highest order derivative variables and 2 equations`. Fix: introduce an explicit state `w` with `w = der(flange.phi)` and apply the floor only inside non-derivative algebraic uses; never put a `der(...)` *inside* a `sqrt`.
 - **Connector flow rules surprise: a single connection with a forced flow makes the system over-determined.** Setting `prop.flange.tau = 50000` directly with no other connection on `flange` produced `ExtraEquationsSystemException` because the connector also implies "sum of flows = 0 ⇒ flange.tau = 0" at an unconnected port. Use a proper source: `RotationalComponents.Sources.TorqueSource` + a `Constant` on its input + a `Fixed` grounding the support spline.
 - **`RotationalComponents.Sources.TorqueSource` needs its support spline grounded.** It extends `PartialElementaryOneSplineAndSupport`, which has `support` and `phi_support`. Always connect the support to a `RotationalComponents.Components.Fixed` or another grounded element.

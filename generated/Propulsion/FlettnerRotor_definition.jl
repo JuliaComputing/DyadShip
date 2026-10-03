@@ -4,8 +4,6 @@
 ### Instead, update the Dyad source code and regenerate this file
 
 
-import Moshi as __Ext__Moshi
-
 @doc Markdown.doc"""
    FlettnerRotor(; name, cl_dataset, cd_dataset, R, H, MaxOmega, AirDensity)
 

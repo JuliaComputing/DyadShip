@@ -115,7 +115,7 @@ trajectory, with live magnitudes 20–30 % lower during the ramp-up.
 
 Dyad models live in `dyad/`; the Dyad compiler emits Julia into `generated/`
 (never edit those files). The wrappers `../julia-dyad.sh` and `../dyad.sh`
-select the `dyad-3.3.0` JuliaUp channel and `dyad-cli@3.3.0`; run heavy
+select the `dyad-3.4.0` JuliaUp channel and `dyad-cli@3.4.0`; run heavy
 commands through `~/dyad-fleet/heavy` on this machine.
 
 ```sh

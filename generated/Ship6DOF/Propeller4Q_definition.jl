@@ -4,8 +4,6 @@
 ### Instead, update the Dyad source code and regenerate this file
 
 
-import Moshi as __Ext__Moshi
-
 @doc Markdown.doc"""
    Propeller4Q(; name, PropModel, Diameter, Ae_Ao, P_D, h_prop, p_atm_minus_pv, Density_Prop, Inertia, Add_Inertia, Lpp, B, Cb, Fa, Rudder_distance, SeaDensity, WakeFraction, ThrustDeduction)
 

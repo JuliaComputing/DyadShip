@@ -4,8 +4,6 @@
 ### Instead, update the Dyad source code and regenerate this file
 
 
-import Moshi as __Ext__Moshi
-
 @doc Markdown.doc"""
    HeadingAutoPilot(; name, k_p, k_i, Rudder_max, Integral_max, Deadband, Throttle_full_dist, Throttle_off_dist)
 

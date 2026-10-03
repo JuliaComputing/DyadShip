@@ -4,8 +4,6 @@
 ### Instead, update the Dyad source code and regenerate this file
 
 
-import Moshi as __Ext__Moshi
-
 @doc Markdown.doc"""
    CentrifugalPump(; name, H0, k, k_back, k_lin, Q_eps, T_ref, g)
 

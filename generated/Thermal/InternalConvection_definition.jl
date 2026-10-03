@@ -4,8 +4,6 @@
 ### Instead, update the Dyad source code and regenerate this file
 
 
-import Moshi as __Ext__Moshi
-
 @doc Markdown.doc"""
    InternalConvection(; name, wall_type, Surf, dT_eps)
 
@@ -137,14 +135,14 @@ import Moshi as __Ext__Moshi
   push!(__eqs, h ~ K * (ΔT ^ 2 + dT_eps ^ 2) ^ (1 / 6))
 
   ### Control Structures
-  Moshi.Match.@match wall_type begin
-    DyadShip.Thermal.WallType.Floor() => begin
+  @__dyad_switch wall_type begin
+    DyadShip.Thermal.WallType.Floor => begin
       push!(__eqs, K ~ ifelse(ΔT <= 0, 0.76, 1.51))
     end
-    DyadShip.Thermal.WallType.Ceil() => begin
+    DyadShip.Thermal.WallType.Ceil => begin
       push!(__eqs, K ~ ifelse(ΔT <= 0, 1.51, 0.76))
     end
-    DyadShip.Thermal.WallType.Wall() => begin
+    DyadShip.Thermal.WallType.Wall => begin
       push!(__eqs, K ~ 1.3)
     end
   end

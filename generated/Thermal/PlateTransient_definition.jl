@@ -4,8 +4,6 @@
 ### Instead, update the Dyad source code and regenerate this file
 
 
-import Moshi as __Ext__Moshi
-
 @doc Markdown.doc"""
    PlateTransient(; name, e, Asur, k, rhoCp, T_init, nNodes, nInterior, dx, C_node, G_internal, G_face)
 

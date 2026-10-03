@@ -4,8 +4,6 @@
 ### Instead, update the Dyad source code and regenerate this file
 
 
-import Moshi as __Ext__Moshi
-
 @doc Markdown.doc"""
    RudderReturn2D(; name, rpm, rudder_deg, t_on, t_off)
 

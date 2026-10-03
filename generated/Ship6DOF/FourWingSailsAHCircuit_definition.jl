@@ -4,8 +4,6 @@
 ### Instead, update the Dyad source code and regenerate this file
 
 
-import Moshi as __Ext__Moshi
-
 @doc Markdown.doc"""
    FourWingSailsAHCircuit(; name, U0, J_shaft, rpm, sail_angle, wind_speed, wind_direction, r_tank_a, r_tank_b, V_tank, H_tank, fill_start, rho_liquid, T_liquid, Q_nominal, H0, k_pump, m_flow_nominal, dp_nominal, fill_max, fill_min, fill_band, T_valve, T_pump)
 

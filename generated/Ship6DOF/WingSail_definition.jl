@@ -4,8 +4,6 @@
 ### Instead, update the Dyad source code and regenerate this file
 
 
-import Moshi as __Ext__Moshi
-
 @doc Markdown.doc"""
    WingSail(; name, Cl_file, Cd_file, Cm_file, Cl_data, Cd_data, Cm_data, Re_min, Re_max, Re_cm_min, Re_cm_max, C, s, AxisPos, MaxSailAngularSpeed, AirDensity, AirKViscosity, Surf, alpha_eps)
 

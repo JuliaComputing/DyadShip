@@ -4,8 +4,6 @@
 ### Instead, update the Dyad source code and regenerate this file
 
 
-import Moshi as __Ext__Moshi
-
 @doc Markdown.doc"""
    HullMMG(; name, Lpp, B, Draft, Cb, mass, Iz, SeaDensity, R3, R2, R1, U_floor, render, body_radius, X_vv, X_vvvv, X_rr, X_vr, Y_v, Y_vvv, Y_r, Y_rrr, Y_vrr, Y_vvr, N_v, N_vvv, N_r, N_rrr, N_vrr, N_vvr)
 

@@ -4,8 +4,6 @@
 ### Instead, update the Dyad source code and regenerate this file
 
 
-import Moshi as __Ext__Moshi
-
 @doc Markdown.doc"""
    FullShip6DOF(; name, U0, J_shaft, target_x, target_y, rpm_full, wind_speed, wind_direction)
 
