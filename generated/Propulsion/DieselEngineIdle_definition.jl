@@ -8,7 +8,7 @@
    DieselEngineIdle(; name)
 
 Engine with zero RPM demand on a shaft at rest, with an explicit no-load fuel rate. The
-value 0.002 kg/s is a round test number, not a calibration. Nothing moves, the shaft
+value 0.002 kg/s is a synthetic test number, not a calibration or a manufacturer figure. Nothing moves, the shaft
 work stays zero, and the fuel counter grows linearly at exactly `m_dot_idle`.
 """
 @component function DieselEngineIdle(; name = nothing, kwargs...)

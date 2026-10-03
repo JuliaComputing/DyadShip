@@ -91,14 +91,35 @@ prefer `Ship6DOF` for manoeuvring studies.
 engine torque is never negative, so a shaft driven backwards against it is a
 motored engine that reports negative `ShaftPower` and no fuel, never a fuel
 credit (upstream integrates the signed sensed power and goes negative). The
-SFOC table is a parameter pair (`SFOC_P`, `SFOC_g`), its end values are held
-outside the tabulated 605–1210 kW and `SFOC_valid` flags when that
-extrapolation is in use; `m_dot_idle` adds a documented no-load rate and
-defaults to zero as upstream. `Inst_Fuel` [kg/s] is nonnegative, `Fuel` [kg]
-is exactly its integral and nondecreasing, `KWh` stays the signed net work.
+SFOC table is a parameter pair (`SFOC_P`, `SFOC_g`) whose end values are held
+outside the tabulated 605–1210 kW. `SFOC_valid` is a table-coverage flag (0
+while a held end value is in use), not a calibration statement, and
+`Fuel_extrapolated` [kg] accumulates the fuel metered outside the table, so
+an interval of the `Fuel` counter is inside the table exactly when
+`Fuel_extrapolated` did not change over it. `m_dot_idle` adds a no-load rate
+and defaults to zero as upstream. `Inst_Fuel` [kg/s] is nonnegative, `Fuel`
+[kg] is exactly its integral and nondecreasing, `KWh` stays the signed net
+work. The default tables are the upstream ShipSIM values, for which upstream
+cites no engine or test: they are reference values, not an OEM calibration
+(sources and manufacturer documents for context are linked in the component
+docstring). `assert`s reject unordered, non-finite or non-positive tables and
+a negative idle rate.
+
+The fuel counters are nondecreasing at every accepted solver step.
+Interpolated values, including a `saveat` grid, which stores the interpolant
+rather than extra steps, can fall back inside a step that spans a kink of the
+rate (1.5e-5 kg on 0.41 kg in `DieselEngineReversing` without step
+alignment; the size follows the step length, not the solver tolerance).
+`DieselEngineReversing` declares its zero-power crossings as `tstops`, which
+makes its dense fuel counter nondecreasing too; where crossing times are not
+known, export counters at the accepted steps. The metering is evaluated
+pointwise and does not depend on `automatic_discontinuity_detection`, whose
+events miss a condition that starts exactly on its threshold (an engine
+starting at zero power).
 `scripts/validate_engine_fuel.jl` checks the forward ramp against the
-previous numbers, a reversing shaft imposed by a velocity source, and a
-stopped shaft with idle fuel.
+previous numbers, a reversing shaft imposed by a velocity source, a stopped
+shaft with and without idle fuel, the sampling behaviour and the rejected
+parameter values.
 
 The `FlettnerRotor` component reads `Cl(ξ)`, `Cd(ξ)` from
 `assets/flettner_coeffs.csv`, produced offline by

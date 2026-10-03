@@ -30,6 +30,11 @@ at t=10 s, -500 RPM at t=15 s and back to 1500 RPM at t=30 s, with a constant 15
 demand. While the shaft is dragged backwards the PI saturates at the low-speed torque
 limit, so the engine resists with positive torque and `ShaftPower` is negative; the fuel
 rate must stay at zero (no idle fuel here) and the cumulative fuel must not decrease.
+
+The analysis declares the two zero-power crossings as `tstops = [10, 20]`, so the solver
+ends a step at each and the dense fuel counter is nondecreasing. Without them one step
+spans the crossing and the interpolated counter (dense output or `saveat`) falls back by
+1.5e-5 kg.
 """
 test component DieselEngineReversing
   engine = SimpleDieselEngine()
@@ -44,13 +49,13 @@ relations
 end
 
 analysis SimpleDieselEngineReversingTransient
-  extends TransientAnalysis(stop = 30.0)
+  extends TransientAnalysis(stop = 30.0, tstops = [10.0, 20.0])
   model = DieselEngineReversing()
 end
 
 """
 Engine with zero RPM demand on a shaft at rest, with an explicit no-load fuel rate. The
-value 0.002 kg/s is a round test number, not a calibration. Nothing moves, the shaft
+value 0.002 kg/s is a synthetic test number, not a calibration or a manufacturer figure. Nothing moves, the shaft
 work stays zero, and the fuel counter grows linearly at exactly `m_dot_idle`.
 """
 test component DieselEngineIdle

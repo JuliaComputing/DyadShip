@@ -12,6 +12,11 @@ at t=10 s, -500 RPM at t=15 s and back to 1500 RPM at t=30 s, with a constant 15
 demand. While the shaft is dragged backwards the PI saturates at the low-speed torque
 limit, so the engine resists with positive torque and `ShaftPower` is negative; the fuel
 rate must stay at zero (no idle fuel here) and the cumulative fuel must not decrease.
+
+The analysis declares the two zero-power crossings as `tstops = [10, 20]`, so the solver
+ends a step at each and the dense fuel counter is nondecreasing. Without them one step
+spans the crossing and the interpolated counter (dense output or `saveat`) falls back by
+1.5e-5 kg.
 """
 @component function DieselEngineReversing(; name = nothing, kwargs...)
   isnothing(name) && throw(ArgumentError("""
