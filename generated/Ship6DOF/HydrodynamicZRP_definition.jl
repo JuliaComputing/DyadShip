@@ -4,8 +4,6 @@
 ### Instead, update the Dyad source code and regenerate this file
 
 
-import Moshi as __Ext__Moshi
-
 @doc Markdown.doc"""
    HydrodynamicZRP(; name, Lpp, B, mass, Cw, GM, GM_L, k_xx, k_yy, SeaDensity, g, zeta_heave, zeta_roll, zeta_pitch, B_heave, B_roll, B_pitch, Z_d, R_d, P_d, mz, Jr, Jp)
 

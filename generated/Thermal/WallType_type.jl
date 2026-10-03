@@ -4,9 +4,11 @@
 ### Instead, update the Dyad source code and regenerate this file
 
 
-Moshi.Data.@data WallType begin
-  Floor
-  Ceil
-  Wall
+module WallType
+import ..__dyad_sym_union
+abstract type Type end
+struct Floor <: Type end
+struct Ceil <: Type end
+struct Wall <: Type end
 end
 export WallType

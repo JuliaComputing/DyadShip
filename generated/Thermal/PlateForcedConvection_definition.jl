@@ -4,8 +4,6 @@
 ### Instead, update the Dyad source code and regenerate this file
 
 
-import Moshi as __Ext__Moshi
-
 @doc Markdown.doc"""
    PlateForcedConvection(; name, L, A_plate, k, nu, rho, Cp, eps_num)
 

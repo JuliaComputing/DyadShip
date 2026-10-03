@@ -4,8 +4,6 @@
 ### Instead, update the Dyad source code and regenerate this file
 
 
-import Moshi as __Ext__Moshi
-
 @doc Markdown.doc"""
    Rudder(; name, Lpp, B, Cb, T, C, s, MaxRudderAngle, Rudder_Tau, a_h, Gamma_R_Pos, Gamma_R_Neg, SeaKViscosity, SeaDensity, Cl0, Cl1, Cl2, Cd0, Cd1, Cd2, Cm0, Cm1, Cm2, Surf)
 

@@ -4,8 +4,6 @@
 ### Instead, update the Dyad source code and regenerate this file
 
 
-import Moshi as __Ext__Moshi
-
 @doc Markdown.doc"""
    Cable(; name, fixed_rotation_at_frame_a, fixed_rotation_at_frame_b, dt_check, s_small, k, d, RotureStrength)
 
@@ -171,7 +169,7 @@ connectors that can be connected together ([`Frame3D`](@ref))
 
   ### Assertions
   __assertions = []
-  push!(__assertions, (length > s_small => "The distance between the origin of frame_a and the origin of frame_b of a line force component became smaller than parameter s_small."))
+  push!(__assertions, (length > s_small => "The distance between the origin of frame_a and the origin of frame_b of a line force component became smaller than parameter s_small. (at forces.dyad:28:3)"))
 
   ### Equations
   push!(__eqs, r_rel_0 ~ frame_b.r_0 - frame_a.r_0)

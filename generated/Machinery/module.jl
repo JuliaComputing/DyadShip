@@ -6,7 +6,7 @@
 module Machinery
 
 using ..DyadShip
-using ..DyadShip: __build_overrides, __dyad_sym_union, __pop_subcomponent_overrides!
+using ..DyadShip: __build_overrides, __dyad_sym_union, __pop_subcomponent_overrides!, __dyad_isa_variant, __dyad_promoted_value_fits, @__dyad_switch
 
 if isfile(joinpath((@__DIR__) |> Base.dirname |> Base.dirname, "dyad", "Machinery", "module.jl"))
   include(joinpath((@__DIR__) |> Base.dirname |> Base.dirname, "dyad", "Machinery", "module.jl"))

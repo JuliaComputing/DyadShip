@@ -4,8 +4,6 @@
 ### Instead, update the Dyad source code and regenerate this file
 
 
-import Moshi as __Ext__Moshi
-
 @doc Markdown.doc"""
    EnvironmentHeatTransfer(; name, dt, N_avg, latitude, longitude, time_zone, day_of_year, irradiance_ref, G_min)
 

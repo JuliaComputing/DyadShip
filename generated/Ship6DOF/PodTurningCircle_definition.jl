@@ -4,8 +4,6 @@
 ### Instead, update the Dyad source code and regenerate this file
 
 
-import Moshi as __Ext__Moshi
-
 @doc Markdown.doc"""
    PodTurningCircle(; name, U0, rpm, pod_deg, t_turn, J_shaft)
 

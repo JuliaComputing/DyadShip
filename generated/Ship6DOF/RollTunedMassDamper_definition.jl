@@ -4,8 +4,6 @@
 ### Instead, update the Dyad source code and regenerate this file
 
 
-import Moshi as __Ext__Moshi
-
 @doc Markdown.doc"""
    RollTunedMassDamper(; name, r_mount, m_d, h, I_roll, T_roll, mu, omega_d, zeta_d, k, d)
 

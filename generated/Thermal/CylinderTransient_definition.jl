@@ -4,8 +4,6 @@
 ### Instead, update the Dyad source code and regenerate this file
 
 
-import Moshi as __Ext__Moshi
-
 @doc Markdown.doc"""
    CylinderTransient(; name, R, L, k, rhoCp, T_start, N, A, V_ring, C_node, G_array)
 

@@ -4,8 +4,6 @@
 ### Instead, update the Dyad source code and regenerate this file
 
 
-import Moshi as __Ext__Moshi
-
 @doc Markdown.doc"""
    ShipBody(; name, n_Disp, n_LCB, n_TCB, n_VCB, n_BMt, n_BMl, Lpp, B, Cb, Disp_Table, LCB_Table, TCB_Table, VCB_Table, BMt_Table, BMl_Table, mass, CoG, I_xx, I_yy, I_zz, g, ini_Pos, ini_Vel, ini_Yaw, ini_Trim, ini_Heel, render)
 

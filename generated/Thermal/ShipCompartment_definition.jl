@@ -4,8 +4,6 @@
 ### Instead, update the Dyad source code and regenerate this file
 
 
-import Moshi as __Ext__Moshi
-
 @doc Markdown.doc"""
    ShipCompartment(; name, N_flow, N_surf, inner_wall_type, V_tot, medium_data, p_start, T_start, Xi_start, lambda_wall, cp_wall, rho_wall, d_wall, A_wall, T_wall_start, Norm)
 

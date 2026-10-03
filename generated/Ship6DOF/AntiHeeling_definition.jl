@@ -4,8 +4,6 @@
 ### Instead, update the Dyad source code and regenerate this file
 
 
-import Moshi as __Ext__Moshi
-
 @doc Markdown.doc"""
    AntiHeeling(; name, dt, B, b, V_tk, rho, Q, max_angle, off_angle, ramp_time, startup_delay, g, apply_moment)
 

@@ -4,8 +4,6 @@
 ### Instead, update the Dyad source code and regenerate this file
 
 
-import Moshi as __Ext__Moshi
-
 @doc Markdown.doc"""
    OnOffConsumer(; name, NominalPower, Kr, StartTime, CycleAmplitude, CycleFrequency, T_switch)
 

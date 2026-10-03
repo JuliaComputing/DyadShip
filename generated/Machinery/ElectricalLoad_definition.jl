@@ -4,8 +4,6 @@
 ### Instead, update the Dyad source code and regenerate this file
 
 
-import Moshi as __Ext__Moshi
-
 @doc Markdown.doc"""
    ElectricalLoad(; name, N, dt, seed_base, NominalPower, StartsHour, duty, Kr, StartTime)
 

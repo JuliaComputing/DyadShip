@@ -4,8 +4,6 @@
 ### Instead, update the Dyad source code and regenerate this file
 
 
-import Moshi as __Ext__Moshi
-
 @doc Markdown.doc"""
    FullShipFlettnerOnlineRender(; name, target_x, target_y, base_torque, wind_speed_mean, wind_direction_mean, rotor_R, rotor_H, omega_target, rotor_arm)
 

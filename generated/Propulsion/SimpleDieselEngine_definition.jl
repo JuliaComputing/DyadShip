@@ -4,8 +4,6 @@
 ### Instead, update the Dyad source code and regenerate this file
 
 
-import Moshi as __Ext__Moshi
-
 @doc Markdown.doc"""
    SimpleDieselEngine(; name, J_engine, RPM_min, RPM_max, k_PI, Ti_PI, tau_max_abs)
 

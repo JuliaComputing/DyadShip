@@ -4,8 +4,6 @@
 ### Instead, update the Dyad source code and regenerate this file
 
 
-import Moshi as __Ext__Moshi
-
 @doc Markdown.doc"""
    CrashStop(; name, U0, J_shaft, rpm_ahead, rpm_astern, t_reverse, t_ramp)
 

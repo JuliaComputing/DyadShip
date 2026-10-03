@@ -120,7 +120,8 @@ signal's derivative — and `src/Rainflow.jl` consumes that series.
 ## Discrete events are available after all
 
 `DiscreteComponents` (registry, not bundled with the kernel; 0.2.0 resolves on
-dyad-3.3.0) brings a clocked sublanguage to Dyad: components and connectors
+dyad-3.3.0, 0.5.1 is needed on dyad-3.4.0, where 0.2.0 fails at run time with
+"`SciMLBase` not defined in `DiscreteComponents`") brings a clocked sublanguage to Dyad: components and connectors
 tagged `@[clk]`, `x@(clk-1)` for the previous sample, `PeriodicClock`,
 `ZeroCrossingClock`, `Sampler`, `ZeroOrderHold`, delays, discrete PID and
 binary (hysteresis) controllers, seeded noise. `EventPeakSampler`, the

@@ -4,8 +4,6 @@
 ### Instead, update the Dyad source code and regenerate this file
 
 
-import Moshi as __Ext__Moshi
-
 @doc Markdown.doc"""
    ConvectionHorizontalCylinder(; name, D, L, k, nu, rho, Cp, beta, u_min, eps_num)
 
