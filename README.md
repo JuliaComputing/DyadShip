@@ -87,6 +87,19 @@ in this pass (rudder inflow angle, wind lateral force and moment); its
 analyses still use a hull mass well below the sample ship's displacement, so
 prefer `Ship6DOF` for manoeuvring studies.
 
+`Propulsion.SimpleDieselEngine` meters fuel on the brake power only: the
+engine torque is never negative, so a shaft driven backwards against it is a
+motored engine that reports negative `ShaftPower` and no fuel, never a fuel
+credit (upstream integrates the signed sensed power and goes negative). The
+SFOC table is a parameter pair (`SFOC_P`, `SFOC_g`), its end values are held
+outside the tabulated 605–1210 kW and `SFOC_valid` flags when that
+extrapolation is in use; `m_dot_idle` adds a documented no-load rate and
+defaults to zero as upstream. `Inst_Fuel` [kg/s] is nonnegative, `Fuel` [kg]
+is exactly its integral and nondecreasing, `KWh` stays the signed net work.
+`scripts/validate_engine_fuel.jl` checks the forward ramp against the
+previous numbers, a reversing shaft imposed by a velocity source, and a
+stopped shaft with idle fuel.
+
 The `FlettnerRotor` component reads `Cl(ξ)`, `Cd(ξ)` from
 `assets/flettner_coeffs.csv`, produced offline by
 `scripts/run_waterlily_flettner.jl` from WaterLily.jl simulations of a

@@ -5,19 +5,20 @@
 
 
 @doc Markdown.doc"""
-   DieselEngineRamp(; name)
+   DieselEngineReversing(; name)
 
-Diesel engine driving an external inertia. RPM demand steps from 1500 to 1800 at t=2s;
-the PI controller should bring the shaft to ~1800 RPM in a few seconds. Energy and fuel
-integrators should accumulate accordingly. The damper load takes 355 kW at 1800 RPM,
-below the 605 kW lower knot of the SFOC table, so `SFOC_valid` is 0 at the steady state.
+Shaft speed imposed on the engine by a velocity source: 1500 RPM at t=0, through zero
+at t=10 s, -500 RPM at t=15 s and back to 1500 RPM at t=30 s, with a constant 1500 RPM
+demand. While the shaft is dragged backwards the PI saturates at the low-speed torque
+limit, so the engine resists with positive torque and `ShaftPower` is negative; the fuel
+rate must stay at zero (no idle fuel here) and the cumulative fuel must not decrease.
 """
-@component function DieselEngineRamp(; name = nothing, kwargs...)
+@component function DieselEngineReversing(; name = nothing, kwargs...)
   isnothing(name) && throw(ArgumentError("""
     The `name` keyword must be provided. Please consider using the `@named` macro,
     like so:
   
-    @named model = DieselEngineRamp()
+    @named model = DieselEngineReversing()
   """))
 
   __overrides = __build_overrides(kwargs)
@@ -59,18 +60,15 @@ below the 605 kW lower knot of the SFOC table, so `SFOC_valid` is 0 at the stead
   # Subcomponent engine of type DyadShip.Propulsion.SimpleDieselEngine
   engine_overrides = __pop_subcomponent_overrides!(__overrides, "engine")
   push!(__systems, @named engine = DyadShip.Propulsion.SimpleDieselEngine(; engine_overrides...))
-  # Subcomponent inertia of type RotationalComponents.Components.Inertia
-  inertia_overrides = __pop_subcomponent_overrides!(__overrides, "inertia")
-  push!(__systems, @named inertia = RotationalComponents.Components.Inertia(; J=Float64(50), inertia_overrides...))
-  # Subcomponent ground of type RotationalComponents.Components.Damper
-  ground_overrides = __pop_subcomponent_overrides!(__overrides, "ground")
-  push!(__systems, @named ground = RotationalComponents.Components.Damper(; d=Float64(10), ground_overrides...))
+  # Subcomponent drive of type RotationalComponents.Sources.VelocitySource
+  drive_overrides = __pop_subcomponent_overrides!(__overrides, "drive")
+  push!(__systems, @named drive = RotationalComponents.Sources.VelocitySource(; ref_type=RotationalComponents.Sources.ReferenceType.Exact(), drive_overrides...))
   # Subcomponent fixed of type RotationalComponents.Components.Fixed
   fixed_overrides = __pop_subcomponent_overrides!(__overrides, "fixed")
   push!(__systems, @named fixed = RotationalComponents.Components.Fixed(; fixed_overrides...))
-  # Subcomponent step of type BlockComponents.Sources.Step
-  step_overrides = __pop_subcomponent_overrides!(__overrides, "step")
-  push!(__systems, @named step = BlockComponents.Sources.Step(; height=Float64(300), start_time=Float64(2.0), offset=Float64(1500), step_overrides...))
+  # Subcomponent demand of type BlockComponents.Sources.Constant
+  demand_overrides = __pop_subcomponent_overrides!(__overrides, "demand")
+  push!(__systems, @named demand = BlockComponents.Sources.Constant(; k=Float64(1500), demand_overrides...))
 
   ### Check there are no unmatched overrides
   isempty(__overrides) || throw(ArgumentError("overrides: [$(join(keys(__overrides), ", "))] don't match names found in model. These names may exist in the model but could have been conditionally excluded."))
@@ -78,19 +76,17 @@ below the 605 kW lower knot of the SFOC table, so `SFOC_valid` is 0 at the stead
   ### Guesses
 
   ### Initialization Equations
-  push!(__initialization_eqs, inertia.phi ~ 0)
-  push!(__initialization_eqs, inertia.w ~ 1500 * 2 * π / 60)
 
   ### Assertions
   __assertions = []
 
   ### Equations
-  push!(__eqs, connect(step.y, engine.RPM_demand))
-  push!(__eqs, connect(engine.flange, inertia.spline_a))
-  push!(__eqs, connect(inertia.spline_b, ground.spline_a))
-  push!(__eqs, connect(ground.spline_b, fixed.spline))
+  push!(__eqs, drive.w_ref ~ (2 * π / 60) * (500 + 1000 * cos(2 * π * t / 30)))
+  push!(__eqs, connect(demand.y, engine.RPM_demand))
+  push!(__eqs, connect(engine.flange, drive.spline))
+  push!(__eqs, connect(drive.support, fixed.spline))
 
   # Return completely constructed System
   return System(__eqs, t, __vars, __params; systems=__systems, initial_conditions=__initial_conditions, guesses=__guesses, name, initialization_eqs=__initialization_eqs, bindings=__bindings, assertions=__assertions)
 end
-export DieselEngineRamp
+export DieselEngineReversing

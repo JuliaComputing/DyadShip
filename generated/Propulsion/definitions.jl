@@ -204,7 +204,9 @@ component.
 end
 
 
+include("DieselEngineIdle_definition.jl")
 include("DieselEngineRamp_definition.jl")
+include("DieselEngineReversing_definition.jl")
 include("FlettnerRotorBeamWind_definition.jl")
 include("FlettnerRotorOnline_definition.jl")
 include("FlettnerRotorTransient_definition.jl")
@@ -216,5 +218,7 @@ include("Propeller4Q_definition.jl")
 include("RudderStep_definition.jl")
 include("RudderTransient_definition.jl")
 include("Rudder_definition.jl")
+include("SimpleDieselEngineIdleTransient_definition.jl")
+include("SimpleDieselEngineReversingTransient_definition.jl")
 include("SimpleDieselEngineTransient_definition.jl")
 include("SimpleDieselEngine_definition.jl")
