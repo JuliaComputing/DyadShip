@@ -20,8 +20,8 @@ no saturation, no rating limit.
 
 | Name         | Description                         | Units  |   Default value |
 | ------------ | ----------------------------------- | ------ | --------------- |
-| `k`         | EMF constant [V·s/rad] (equal to the torque constant [N·m/A])                         | --  |    |
-| `R`         | Series (armature) resistance [Ω]                         | --  |    |
+| `k`         | EMF constant [V·s/rad] (equal to the torque constant [N·m/A]), positive                         | --  |    |
+| `R`         | Series (armature) resistance [Ω], positive: the machine is singular at zero                         | --  |    |
 
 ## Connectors
 
@@ -62,10 +62,10 @@ no saturation, no rating limit.
 
   ### Symbolic Parameters
   __local__k = k
-  append!(__params, @parameters (k::Real), [description = "EMF constant [V·s/rad] (equal to the torque constant [N·m/A])"])
+  append!(__params, @parameters (k::Real), [description = "EMF constant [V·s/rad] (equal to the torque constant [N·m/A]), positive", bounds = (0, Inf)])
   __initial_conditions[k] = __local__k
   __local__R = R
-  append!(__params, @parameters (R::Real), [description = "Series (armature) resistance [Ω]"])
+  append!(__params, @parameters (R::Real), [description = "Series (armature) resistance [Ω], positive: the machine is singular at zero", bounds = (0, Inf)])
   __initial_conditions[R] = __local__R
 
   ### Final Parameters (assignments)

@@ -16,7 +16,7 @@ rate must stay at zero (no idle fuel here) and the cumulative fuel must not decr
 The analysis declares the two zero-power crossings as `tstops = [10, 20]`, so the solver
 ends a step at each and the dense fuel counter is nondecreasing. Without them one step
 spans the crossing and the interpolated counter (dense output or `saveat`) falls back by
-1.5e-5 kg.
+4.6e-5 kg.
 """
 @component function DieselEngineReversing(; name = nothing, kwargs...)
   isnothing(name) && throw(ArgumentError("""

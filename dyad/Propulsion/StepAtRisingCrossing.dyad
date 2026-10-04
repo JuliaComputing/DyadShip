@@ -1,0 +1,26 @@
+"""
+Makes the solver end a step each time the input signal `u` crosses zero from below.
+
+It has no output and no state: it only places a step boundary at a rising crossing. A
+falling crossing is ignored, and a crossing that is missed (a signal that starts exactly
+at zero) costs nothing but that boundary.
+
+What it is for, and what it is not for. When the solver finds the crossing inside a step
+it has already taken, it cuts that step back to the crossing and takes the state there
+from the step's interpolant. For an integral whose rate drops to zero at the crossing
+this is harmless (the interpolated value lies between the start and the end of the step)
+and it makes the following step start where the rate is already zero, so a counter that
+must then stay constant does stay exactly constant. For an integral whose rate *rises*
+from zero at the crossing it would be harmful: the interpolant of the step that overshot
+dips below the constant value before it rises, and cutting the step back there writes
+that dip into the state. So use it on the crossings where a rate switches off, and leave
+the crossings where a rate switches on to the solver's ordinary steps or to `tstops`.
+
+Implemented in `definitions.jl` as a root-finding event with an empty action on the
+rising edge.
+"""
+external component StepAtRisingCrossing
+  "Signal whose rising zero crossings end a solver step"
+  u = RealInput()
+relations
+end
