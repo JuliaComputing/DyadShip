@@ -125,7 +125,7 @@ parameter values.
 
 `Propulsion.SyntheticDieselEngineA` and `SyntheticDieselEngineB` are parameter
 presets of the one `SimpleDieselEngine`: a wrapper without equations holds the
-engine as `core` and loads `assets/presets/synthetic/diesel_engine_{a,b}.toml`
+engine as `core` and loads `assets/presets/Synthetic/diesel_engine_{a,b}.toml`
 with an `apply` clause, which is the path Dyad 3.4 supports for a table whose
 length differs from the default (six and three knots here; the file sets the
 structural `n_sfoc` together with the arrays). Both files are **synthetic**:
@@ -134,7 +134,8 @@ manufacturer data or a calibration, as their `*.provenance.toml` sidecars
 record. `scripts/validate_engine_presets.jl` solves both and checks the
 metered fuel against the files; `test/invalid_engine_presets` holds files that
 must be refused and shows where each kind is caught (compiler diagnostic with
-exit status 0, construction, problem build, or the engine's assertions).
+exit status 0, construction, or the engine's assertions). A table whose
+length disagrees with `n_sfoc` is refused when the engine is constructed.
 
 The `FlettnerRotor` component reads `Cl(ξ)`, `Cd(ξ)` from
 `assets/flettner_coeffs.csv`, produced offline by

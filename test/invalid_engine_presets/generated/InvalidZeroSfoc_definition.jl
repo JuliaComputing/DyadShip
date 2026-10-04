@@ -72,9 +72,10 @@
   push!(__systems, @named flange = __Dyad__Spline())
   # Subcomponent core of type DyadShip.Propulsion.SimpleDieselEngine
   core_overrides = __pop_subcomponent_overrides!(__overrides, "core")
-  __core_apply_exclude = Set{String}(["n_sfoc"])
+  __core_apply_exclude = Set{String}(["n_sfoc", "sfoc_table_length"])
   __core_apply_schema = Dict{String,NamedTuple}(
     "n_sfoc" => (base="Integer", dims=Int[], min=nothing, max=nothing, structural=true, final=false, initial=false, guess=false),
+    "sfoc_table_length" => (base="Integer", dims=Int[], min=nothing, max=nothing, structural=true, final=true, initial=false, guess=false),
     "J_engine" => (base="Real", dims=Int[], min=nothing, max=nothing, structural=false, final=false, initial=false, guess=false),
     "RPM_min" => (base="Real", dims=Int[], min=nothing, max=nothing, structural=false, final=false, initial=false, guess=false),
     "RPM_max" => (base="Real", dims=Int[], min=nothing, max=nothing, structural=false, final=false, initial=false, guess=false),
@@ -100,9 +101,9 @@
     "fuel_mass" => (base="Real", dims=Int[], min=0, max=nothing, structural=false, final=false, initial=true, guess=true),
     "fuel_extrapolated_mass" => (base="Real", dims=Int[], min=0, max=nothing, structural=false, final=false, initial=true, guess=true),
   )
-  __core_apply_1 = __dyad_load_parameters(pkgdir(@__MODULE__), String(nameof(Base.moduleroot(@__MODULE__))), "dyad://DyadShipInvalidEnginePresets/presets/invalid/zero_sfoc.toml")
+  __core_apply_1 = __dyad_load_parameters(pkgdir(@__MODULE__), String(nameof(Base.moduleroot(@__MODULE__))), "dyad://DyadShipInvalidEnginePresets/presets/Invalid/zero_sfoc.toml")
   __core_apply_1_flat = __dyad_flatten(__core_apply_1)
-  __dyad_check_apply(__core_apply_1_flat, __core_apply_schema, "dyad://DyadShipInvalidEnginePresets/presets/invalid/zero_sfoc.toml")
+  __dyad_check_apply(__core_apply_1_flat, __core_apply_schema, "dyad://DyadShipInvalidEnginePresets/presets/Invalid/zero_sfoc.toml")
   push!(__systems, @named core = DyadShip.Propulsion.SimpleDieselEngine(; __dyad_apply_kwargs(__core_apply_1, (:n_sfoc,), __core_apply_schema)..., __dyad_apply_overrides(__core_apply_1, __core_apply_1_flat, __core_apply_exclude, __core_apply_schema)..., core_overrides...))
 
   ### Check there are no unmatched overrides

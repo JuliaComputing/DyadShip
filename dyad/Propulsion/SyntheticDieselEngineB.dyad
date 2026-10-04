@@ -1,5 +1,5 @@
 """
-`SimpleDieselEngine` with the synthetic parameter file `presets/synthetic/diesel_engine_b.toml`:
+`SimpleDieselEngine` with the synthetic parameter file `presets/Synthetic/diesel_engine_b.toml`:
 a three-knot SFOC table from 300 to 1200 kW and no idle fuel.
 
 **Synthetic.** The numbers are round values invented to exercise the preset mechanism.
@@ -26,16 +26,16 @@ What happens to a file that should not be used depends on the defect:
   `urn:instantiate:apply-…` diagnostic **while the compile still exits 0**, and is
   refused when the component is constructed. Read the compile log, not only the exit
   status;
-- arrays whose length disagrees with `n_sfoc` are reported by neither the compiler nor
-  the constructor, because the length is structural; the problem then cannot be built
-  for a solve. Keep `n_sfoc` and both arrays consistent in the file;
+- arrays whose length disagrees with `n_sfoc` are not reported by the compiler, because
+  the length is structural; `SimpleDieselEngine` refuses them with an `ArgumentError`
+  naming the three lengths when the component is constructed, before a problem is built;
 - values that load but cannot be metered (unordered or non-finite knots, non-positive
   SFOC, negative idle rate) are refused by the engine's assertions: the run ends
   without a successful return code.
 """
 component SyntheticDieselEngineB
   extends DieselEnginePorts
-  core = SimpleDieselEngine(apply "dyad://DyadShip/presets/synthetic/diesel_engine_b.toml")
+  core = SimpleDieselEngine(apply "dyad://DyadShip/presets/Synthetic/diesel_engine_b.toml")
 relations
   connect(RPM_demand, core.RPM_demand)
   connect(core.KWh, KWh)

@@ -67,6 +67,20 @@ table_values_valid(ys::AbstractVector) = all(y -> isfinite(y) && y > 0, ys) ? 1.
 """
 rate_valid(x::Real) = isfinite(x) && x >= 0 ? 1.0 : 0.0
 
+"""
+    checked_table_length(n, xs, ys)
+
+Return `n` when `xs` and `ys` both have `n` entries, and throw an `ArgumentError` naming
+the three lengths otherwise. Called while a component is constructed, so a table whose
+length disagrees with its declared knot count is refused before a problem is built.
+"""
+function checked_table_length(n::Integer, xs, ys)
+    (length(xs) == n && length(ys) == n) || throw(ArgumentError(
+        "SFOC table length mismatch: n_sfoc = $(n), SFOC_P has $(length(xs)) entries, SFOC_g has $(length(ys)) entries; " *
+        "pass n_sfoc together with tables of that length"))
+    return n
+end
+
 @register_symbolic positive_part(x::Real)
 @register_symbolic table_hold(xs::AbstractVector, ys::AbstractVector, x::Real)
 @register_symbolic table_covers(xs::AbstractVector, x::Real)

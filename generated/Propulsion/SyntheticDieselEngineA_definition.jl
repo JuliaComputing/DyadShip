@@ -7,7 +7,7 @@
 @doc Markdown.doc"""
    SyntheticDieselEngineA(; name)
 
-`SimpleDieselEngine` with the synthetic parameter file `presets/synthetic/diesel_engine_a.toml`:
+`SimpleDieselEngine` with the synthetic parameter file `presets/Synthetic/diesel_engine_a.toml`:
 a six-knot SFOC table from 200 to 1200 kW and an idle fuel rate of 0.0015 kg/s.
 
 **Synthetic.** The numbers are round values invented to exercise the preset mechanism.
@@ -34,9 +34,9 @@ What happens to a file that should not be used depends on the defect:
   `urn:instantiate:apply-…` diagnostic **while the compile still exits 0**, and is
   refused when the component is constructed. Read the compile log, not only the exit
   status;
-- arrays whose length disagrees with `n_sfoc` are reported by neither the compiler nor
-  the constructor, because the length is structural; the problem then cannot be built
-  for a solve. Keep `n_sfoc` and both arrays consistent in the file;
+- arrays whose length disagrees with `n_sfoc` are not reported by the compiler, because
+  the length is structural; `SimpleDieselEngine` refuses them with an `ArgumentError`
+  naming the three lengths when the component is constructed, before a problem is built;
 - values that load but cannot be metered (unordered or non-finite knots, non-positive
   SFOC, negative idle rate) are refused by the engine's assertions: the run ends
   without a successful return code.
@@ -106,9 +106,10 @@ What happens to a file that should not be used depends on the defect:
   push!(__systems, @named flange = __Dyad__Spline())
   # Subcomponent core of type DyadShip.Propulsion.SimpleDieselEngine
   core_overrides = __pop_subcomponent_overrides!(__overrides, "core")
-  __core_apply_exclude = Set{String}(["n_sfoc"])
+  __core_apply_exclude = Set{String}(["n_sfoc", "sfoc_table_length"])
   __core_apply_schema = Dict{String,NamedTuple}(
     "n_sfoc" => (base="Integer", dims=Int[], min=nothing, max=nothing, structural=true, final=false, initial=false, guess=false),
+    "sfoc_table_length" => (base="Integer", dims=Int[], min=nothing, max=nothing, structural=true, final=true, initial=false, guess=false),
     "J_engine" => (base="Real", dims=Int[], min=nothing, max=nothing, structural=false, final=false, initial=false, guess=false),
     "RPM_min" => (base="Real", dims=Int[], min=nothing, max=nothing, structural=false, final=false, initial=false, guess=false),
     "RPM_max" => (base="Real", dims=Int[], min=nothing, max=nothing, structural=false, final=false, initial=false, guess=false),
@@ -134,9 +135,9 @@ What happens to a file that should not be used depends on the defect:
     "fuel_mass" => (base="Real", dims=Int[], min=0, max=nothing, structural=false, final=false, initial=true, guess=true),
     "fuel_extrapolated_mass" => (base="Real", dims=Int[], min=0, max=nothing, structural=false, final=false, initial=true, guess=true),
   )
-  __core_apply_1 = __dyad_load_parameters(pkgdir(@__MODULE__), String(nameof(Base.moduleroot(@__MODULE__))), "dyad://DyadShip/presets/synthetic/diesel_engine_a.toml")
+  __core_apply_1 = __dyad_load_parameters(pkgdir(@__MODULE__), String(nameof(Base.moduleroot(@__MODULE__))), "dyad://DyadShip/presets/Synthetic/diesel_engine_a.toml")
   __core_apply_1_flat = __dyad_flatten(__core_apply_1)
-  __dyad_check_apply(__core_apply_1_flat, __core_apply_schema, "dyad://DyadShip/presets/synthetic/diesel_engine_a.toml")
+  __dyad_check_apply(__core_apply_1_flat, __core_apply_schema, "dyad://DyadShip/presets/Synthetic/diesel_engine_a.toml")
   push!(__systems, @named core = DyadShip.Propulsion.SimpleDieselEngine(; __dyad_apply_kwargs(__core_apply_1, (:n_sfoc,), __core_apply_schema)..., __dyad_apply_overrides(__core_apply_1, __core_apply_1_flat, __core_apply_exclude, __core_apply_schema)..., core_overrides...))
 
   ### Check there are no unmatched overrides

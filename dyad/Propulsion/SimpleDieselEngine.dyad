@@ -116,8 +116,8 @@ nonnegative and strictly increasing, `SFOC_g` finite and positive, `m_dot_idle` 
 and nonnegative. A violated assertion makes the right-hand side `NaN`, so the analysis
 ends with a failing return code instead of a fuel figure. No fuel-specific lower bound
 on `SFOC_g` is imposed. `SFOC_P` and `SFOC_g` must both have `n_sfoc` entries; pass
-`n_sfoc` together with tables of another length (a length that disagrees with `n_sfoc`
-is rejected when the problem is built). The same checks are available before a run as
+`n_sfoc` together with tables of another length; a length that disagrees with `n_sfoc`
+is refused with an `ArgumentError` when the component is constructed. The same checks are available before a run as
 `table_knots_valid(SFOC_P)`, `table_values_valid(SFOC_g)` and `rate_valid(m_dot_idle)`.
 
 ## Data provenance
@@ -176,6 +176,8 @@ component SimpleDieselEngine
   parameter SFOC_g::Real[n_sfoc] = [185, 179, 178, 182]
   "No-load (idle) fuel mass rate [kg/s] added at all times, finite and nonnegative; 0 reproduces upstream, which has no idle fuel"
   parameter m_dot_idle::MassFlowRate = 0
+  "Length check done when the component is constructed: `SFOC_P` and `SFOC_g` must both have `n_sfoc` entries"
+  final structural parameter sfoc_table_length::Integer = checked_table_length(n_sfoc, SFOC_P, SFOC_g)
 
   RPM_demand = RealInput()
   "Net shaft work [kWh], signed"
