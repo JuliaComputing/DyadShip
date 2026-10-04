@@ -5,7 +5,7 @@
 
 
 @doc Markdown.doc"""
-   FourWingSailsAH(; name, U0, J_shaft, rpm, sail_angle, wind_speed, wind_direction)
+   FourWingSailsAH(; name, U0, J_shaft, hull_mass, ini_draft, rpm, sail_angle, wind_speed, wind_direction)
 
 `FourWingSails` with the anti-heeling system, after
 `ShipSIM.Examples.Sailing.FourWingSailsAH`. The system is held off for the
@@ -19,6 +19,8 @@ band; the two `Tank` models track the levels.
 | ------------ | ----------------------------------- | ------ | --------------- |
 | `U0`         | Initial speed along world x                         | m/s  |   7 |
 | `J_shaft`         | Shaft inertia including the propeller and entrained water                         | --  |   4000 |
+| `hull_mass`         | Mass of the hull body [kg]: the design displacement by default; the lightship mass when tanks and loads are added as separate masses                         | kg  |   5681200 |
+| `ini_draft`         | Initial draft [m]                         | m  |   4 |
 | `rpm`         |                          | --  |   100 |
 | `sail_angle`         | Sail angle order [deg]                         | --  |   50 |
 | `wind_speed`         |                          | m/s  |   15 |
@@ -31,7 +33,7 @@ band; the two `Tank` models track the levels.
 | `rudder_order`         | Rudder angle order [deg], positive to port                         | --  |
 | `shaft_rpm`         | Shaft speed order [rpm]                         | --  |
 """
-@component function FourWingSailsAH(; name = nothing, U0=Float64(7), J_shaft=Float64(4000), rpm=Float64(100), sail_angle=Float64(50), wind_speed=Float64(15), wind_direction=Float64(0), kwargs...)
+@component function FourWingSailsAH(; name = nothing, U0=Float64(7), J_shaft=Float64(4000), hull_mass=Float64(5681200), ini_draft=Float64(4), rpm=Float64(100), sail_angle=Float64(50), wind_speed=Float64(15), wind_direction=Float64(0), kwargs...)
   isnothing(name) && throw(ArgumentError("""
     The `name` keyword must be provided. Please consider using the `@named` macro,
     like so:
@@ -68,6 +70,12 @@ band; the two `Tank` models track the levels.
   __local__J_shaft = J_shaft
   append!(__params, @parameters (J_shaft::Real), [description = "Shaft inertia including the propeller and entrained water"])
   __initial_conditions[J_shaft] = __local__J_shaft
+  __local__hull_mass = hull_mass
+  append!(__params, @parameters (hull_mass::Real), [description = "Mass of the hull body [kg]: the design displacement by default; the lightship mass when tanks and loads are added as separate masses", bounds = (0, Inf)])
+  __initial_conditions[hull_mass] = __local__hull_mass
+  __local__ini_draft = ini_draft
+  append!(__params, @parameters (ini_draft::Real), [description = "Initial draft [m]"])
+  __initial_conditions[ini_draft] = __local__ini_draft
   __local__rpm = rpm
   append!(__params, @parameters (rpm::Real))
   __initial_conditions[rpm] = __local__rpm
@@ -106,7 +114,7 @@ band; the two `Tank` models track the levels.
   push!(__systems, @named world = MultibodyComponents.World(; n=[Float64(0), Float64(0), Float64(-1)], g=9.80665, render=false, nominal_length=Float64(100), world_overrides...))
   # Subcomponent ship of type DyadShip.Ship6DOF.ShipBody
   ship_overrides = __pop_subcomponent_overrides!(__overrides, "ship")
-  push!(__systems, @named ship = DyadShip.Ship6DOF.ShipBody(; ini_Vel=[U0, Float64(0), Float64(0)], ship_overrides...))
+  push!(__systems, @named ship = DyadShip.Ship6DOF.ShipBody(; mass=hull_mass, ini_Pos=[Float64(0), Float64(0), -ini_draft], ini_Vel=[U0, Float64(0), Float64(0)], ship_overrides...))
   # Subcomponent hydro of type DyadShip.Ship6DOF.HydrodynamicXYY
   hydro_overrides = __pop_subcomponent_overrides!(__overrides, "hydro")
   push!(__systems, @named hydro = DyadShip.Ship6DOF.HydrodynamicXYY(; hydro_overrides...))
