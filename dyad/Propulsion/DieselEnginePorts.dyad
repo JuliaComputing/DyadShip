@@ -1,0 +1,24 @@
+"""
+Connectors of `SimpleDieselEngine`, without any equation. Parameter-preset wrappers
+extend this, hold one `SimpleDieselEngine` as `core` and connect each port to it, so
+a preset can replace `SimpleDieselEngine` in an assembly without rewiring.
+
+The meaning, units and sampling rules of every port are those documented on
+`SimpleDieselEngine`.
+"""
+partial component DieselEnginePorts
+  RPM_demand = RealInput()
+  "Net shaft work [kWh], signed"
+  KWh = RealOutput()
+  "Cumulative fuel mass [kg], nondecreasing"
+  Fuel = RealOutput()
+  "Cumulative fuel mass [kg] metered with a held SFOC end value, nondecreasing"
+  Fuel_extrapolated = RealOutput()
+  "Fuel mass rate [kg/s], never negative"
+  Inst_Fuel = RealOutput()
+  "Signed shaft power [W], positive when the engine drives the shaft"
+  ShaftPower = RealOutput()
+  "SFOC table coverage: 1 while the brake power is inside the table range (or zero), 0 while a held end value is in use"
+  SFOC_valid = RealOutput()
+  flange = Spline()
+end

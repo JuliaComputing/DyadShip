@@ -1,0 +1,5 @@
+# INVALID fixture for tests only.
+n_sfoc = 3
+SFOC_P = [300.0, 750.0, 1200.0]
+SFOC_g = [222.0, 0.0, 208.0]
+m_dot_idle = 0.0

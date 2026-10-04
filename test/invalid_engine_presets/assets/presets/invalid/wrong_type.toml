@@ -1,0 +1,4 @@
+# INVALID fixture for tests only.
+n_sfoc = 3
+SFOC_P = "300, 750, 1200"
+SFOC_g = [222.0, 204.0, 208.0]

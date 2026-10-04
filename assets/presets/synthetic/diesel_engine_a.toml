@@ -1,0 +1,6 @@
+# SYNTHETIC fixture. Not manufacturer data and not a calibration.
+# See diesel_engine_a.provenance.toml. Units: SFOC_P kW, SFOC_g g/kWh, m_dot_idle kg/s.
+n_sfoc = 6
+SFOC_P = [200.0, 400.0, 600.0, 800.0, 1000.0, 1200.0]
+SFOC_g = [230.0, 214.0, 205.0, 200.0, 199.0, 203.0]
+m_dot_idle = 0.0015
