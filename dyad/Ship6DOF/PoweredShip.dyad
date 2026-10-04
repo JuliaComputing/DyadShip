@@ -1,0 +1,65 @@
+"""
+`SingleScrewHull` prepared for a power plant. Extending components add one subcomponent
+`plant` that extends `ShipPowerPlantPorts`, connect `plant.propeller_flange` to
+`shaft.spline_a`, and set `plant.shaft_speed_order` [rpm], `plant.hotel_power_demand` [W]
+and `rudder_order` [deg].
+
+`service_distance` [m] is the distance travelled: the integral of the forward speed
+`ship.Surge` from zero at the start (the track length while there is no sway, up to
+the hull's pitch and heave motion).
+"""
+partial component PoweredSingleScrewShip
+  extends SingleScrewHull
+  "Distance travelled [m]"
+  variable service_distance::Length
+relations
+  initial service_distance = 0
+  der(service_distance) = ship.Surge
+end
+
+"""
+Sample hull with the geared diesel plant and no shaft machine, on a straight course:
+constant shaft order `rpm` and constant hotel demand. The main engine drives the
+propeller through the gearbox; the generating set carries the hotel load.
+"""
+test component DieselShipTransit
+  extends PoweredSingleScrewShip(U0 = 5)
+  parameter rpm::Real = 80
+  parameter hotel_W::Real = 400e3
+  plant = DieselMechanicalPlant()
+relations
+  connect(plant.propeller_flange, shaft.spline_a)
+  plant.shaft_speed_order = rpm
+  plant.hotel_power_demand = hotel_W
+  rudder_order = 0
+end
+
+analysis DieselShipTransitTransient
+  extends TransientAnalysis(stop = 600.0)
+  model = DieselShipTransit()
+end
+
+"""
+The same transit with the shaft machine fitted. The shaft order steps from `rpm_low` to
+`rpm_high` at `t_step`: at the low order the engine runs below the machine's matching
+speed and the machine takes power from the bus (take-in); at the high order it runs
+above it and the machine feeds the bus (take-off), relieving the generating set.
+"""
+test component DieselShipShaftMachine
+  extends PoweredSingleScrewShip(U0 = 5)
+  parameter rpm_low::Real = 75
+  parameter rpm_high::Real = 86
+  parameter t_step::Time = 300
+  parameter hotel_W::Real = 400e3
+  plant = DieselShaftMachinePlant()
+relations
+  connect(plant.propeller_flange, shaft.spline_a)
+  plant.shaft_speed_order = ifelse(time > t_step, rpm_high, rpm_low)
+  plant.hotel_power_demand = hotel_W
+  rudder_order = 0
+end
+
+analysis DieselShipShaftMachineTransient
+  extends TransientAnalysis(stop = 600.0, tstops = [300.0])
+  model = DieselShipShaftMachine()
+end

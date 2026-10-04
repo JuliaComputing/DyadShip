@@ -5,13 +5,12 @@
 
 
 @doc Markdown.doc"""
-   WaypointTransit(; name, U0, J_shaft, rpm_full, wind_speed, wind_direction)
+   DieselShipShaftMachine(; name, U0, J_shaft, rpm_low, rpm_high, t_step, hotel_W)
 
-Multi-waypoint transit: the `StandardShip` stack steered by `WaypointAutopilot`
-through the `WaypointSequencer`'s route (three legs by default, with a dog-leg
-to port), under a 10 m/s wind from the north-east. The sequencer advances its
-clocked index when the ship comes within `arrival_radius` of the active
-waypoint; the throttle ramps down only on the final leg.
+The same transit with the shaft machine fitted. The shaft order steps from `rpm_low` to
+`rpm_high` at `t_step`: at the low order the engine runs below the machine's matching
+speed and the machine takes power from the bus (take-in); at the high order it runs
+above it and the machine feeds the bus (take-off), relieving the generating set.
 
 ## Parameters:
 
@@ -19,23 +18,24 @@ waypoint; the throttle ramps down only on the final leg.
 | ------------ | ----------------------------------- | ------ | --------------- |
 | `U0`         | Initial speed along world x                         | m/s  |   5 |
 | `J_shaft`         | Shaft inertia including the propeller and entrained water                         | --  |   4000 |
-| `rpm_full`         |                          | --  |   100 |
-| `wind_speed`         |                          | m/s  |   10 |
-| `wind_direction`         |                          | --  |   45 |
+| `rpm_low`         |                          | --  |   75 |
+| `rpm_high`         |                          | --  |   86 |
+| `t_step`         |                          | s  |   300 |
+| `hotel_W`         |                          | --  |   400e3 |
 
 ## Variables
 
 | Name         | Description                         | Units  | 
 | ------------ | ----------------------------------- | ------ |
 | `rudder_order`         | Rudder angle order [deg], positive to port                         | --  |
-| `shaft_rpm`         | Shaft speed order [rpm]                         | --  |
+| `service_distance`         | Distance travelled [m]                         | m  |
 """
-@component function WaypointTransit(; name = nothing, U0=Float64(5), J_shaft=Float64(4000), rpm_full=Float64(100), wind_speed=Float64(10), wind_direction=Float64(45), kwargs...)
+@component function DieselShipShaftMachine(; name = nothing, U0=Float64(5), J_shaft=Float64(4000), rpm_low=Float64(75), rpm_high=Float64(86), t_step=Float64(300), hotel_W=Float64(400000.0), kwargs...)
   isnothing(name) && throw(ArgumentError("""
     The `name` keyword must be provided. Please consider using the `@named` macro,
     like so:
   
-    @named model = WaypointTransit()
+    @named model = DieselShipShaftMachine()
   """))
 
   __overrides = __build_overrides(kwargs)
@@ -67,15 +67,18 @@ waypoint; the throttle ramps down only on the final leg.
   __local__J_shaft = J_shaft
   append!(__params, @parameters (J_shaft::Real), [description = "Shaft inertia including the propeller and entrained water"])
   __initial_conditions[J_shaft] = __local__J_shaft
-  __local__rpm_full = rpm_full
-  append!(__params, @parameters (rpm_full::Real))
-  __initial_conditions[rpm_full] = __local__rpm_full
-  __local__wind_speed = wind_speed
-  append!(__params, @parameters (wind_speed::Real))
-  __initial_conditions[wind_speed] = __local__wind_speed
-  __local__wind_direction = wind_direction
-  append!(__params, @parameters (wind_direction::Real))
-  __initial_conditions[wind_direction] = __local__wind_direction
+  __local__rpm_low = rpm_low
+  append!(__params, @parameters (rpm_low::Real))
+  __initial_conditions[rpm_low] = __local__rpm_low
+  __local__rpm_high = rpm_high
+  append!(__params, @parameters (rpm_high::Real))
+  __initial_conditions[rpm_high] = __local__rpm_high
+  __local__t_step = t_step
+  append!(__params, @parameters (t_step::Real))
+  __initial_conditions[t_step] = __local__t_step
+  __local__hotel_W = hotel_W
+  append!(__params, @parameters (hotel_W::Real))
+  __initial_conditions[hotel_W] = __local__hotel_W
 
   ### Final Parameters (assignments)
 
@@ -83,15 +86,15 @@ waypoint; the throttle ramps down only on the final leg.
 
   ### Variables (declarations)
   append!(__vars, @variables (rudder_order(t)::Real), [description = "Rudder angle order [deg], positive to port"])
-  append!(__vars, @variables (shaft_rpm(t)::Real), [description = "Shaft speed order [rpm]"])
+  append!(__vars, @variables (service_distance(t)::Real), [description = "Distance travelled [m]"])
 
   ### Variables (assignments)
   __ovr_rudder_order = pop!(__overrides, "rudder_order", nothing); isnothing(__ovr_rudder_order) || push!(__eqs, rudder_order ~ __ovr_rudder_order)
   __ovr_rudder_order__initial = pop!(__overrides, "rudder_order__initial", nothing); isnothing(__ovr_rudder_order__initial) || (__initial_conditions[rudder_order] = __ovr_rudder_order__initial)
   __ovr_rudder_order__guess = pop!(__overrides, "rudder_order__guess", nothing)
-  __ovr_shaft_rpm = pop!(__overrides, "shaft_rpm", nothing); isnothing(__ovr_shaft_rpm) || push!(__eqs, shaft_rpm ~ __ovr_shaft_rpm)
-  __ovr_shaft_rpm__initial = pop!(__overrides, "shaft_rpm__initial", nothing); isnothing(__ovr_shaft_rpm__initial) || (__initial_conditions[shaft_rpm] = __ovr_shaft_rpm__initial)
-  __ovr_shaft_rpm__guess = pop!(__overrides, "shaft_rpm__guess", nothing)
+  __ovr_service_distance = pop!(__overrides, "service_distance", nothing); isnothing(__ovr_service_distance) || push!(__eqs, service_distance ~ __ovr_service_distance)
+  __ovr_service_distance__initial = pop!(__overrides, "service_distance__initial", nothing); isnothing(__ovr_service_distance__initial) || (__initial_conditions[service_distance] = __ovr_service_distance__initial)
+  __ovr_service_distance__guess = pop!(__overrides, "service_distance__guess", nothing)
 
   ### Constants
   __constants = Any[]
@@ -124,34 +127,19 @@ waypoint; the throttle ramps down only on the final leg.
   # Subcomponent rudder of type DyadShip.Ship6DOF.Rudder
   rudder_overrides = __pop_subcomponent_overrides!(__overrides, "rudder")
   push!(__systems, @named rudder = DyadShip.Ship6DOF.Rudder(; rudder_overrides...))
-  # Subcomponent governor of type RotationalComponents.Sources.VelocitySource
-  governor_overrides = __pop_subcomponent_overrides!(__overrides, "governor")
-  push!(__systems, @named governor = RotationalComponents.Sources.VelocitySource(; governor_overrides...))
-  # Subcomponent ground of type RotationalComponents.Components.Fixed
-  ground_overrides = __pop_subcomponent_overrides!(__overrides, "ground")
-  push!(__systems, @named ground = RotationalComponents.Components.Fixed(; ground_overrides...))
-  # Subcomponent pilot of type DyadShip.Ship6DOF.WaypointAutopilot
-  pilot_overrides = __pop_subcomponent_overrides!(__overrides, "pilot")
-  push!(__systems, @named pilot = DyadShip.Ship6DOF.WaypointAutopilot(; pilot_overrides...))
-  # Subcomponent route of type DyadShip.Ship6DOF.WaypointSequencer
-  route_overrides = __pop_subcomponent_overrides!(__overrides, "route")
-  push!(__systems, @named route = DyadShip.Ship6DOF.WaypointSequencer(; N=3, wx=[Float64(5000), Float64(8000), Float64(12000)], wy=[Float64(0), Float64(3000), Float64(3000)], radius=Float64(200), route_overrides...))
-  # Subcomponent env of type DyadShip.Environment
-  env_overrides = __pop_subcomponent_overrides!(__overrides, "env")
-  push!(__systems, @named env = DyadShip.Environment(; WindSpeed=wind_speed, WindDirection=wind_direction, env_overrides...))
-  # Subcomponent wind of type DyadShip.Ship6DOF.ShipWind
-  wind_overrides = __pop_subcomponent_overrides!(__overrides, "wind")
-  push!(__systems, @named wind = DyadShip.Ship6DOF.ShipWind(; wind_overrides...))
+  # Subcomponent plant of type DyadShip.Ship6DOF.DieselShaftMachinePlant
+  plant_overrides = __pop_subcomponent_overrides!(__overrides, "plant")
+  push!(__systems, @named plant = DyadShip.Ship6DOF.DieselShaftMachinePlant(; plant_overrides...))
 
   ### Check there are no unmatched overrides
   isempty(__overrides) || throw(ArgumentError("overrides: [$(join(keys(__overrides), ", "))] don't match names found in model. These names may exist in the model but could have been conditionally excluded."))
 
   ### Guesses
   isnothing(__ovr_rudder_order__guess) || (__guesses[rudder_order] = __ovr_rudder_order__guess)
-  isnothing(__ovr_shaft_rpm__guess) || (__guesses[shaft_rpm] = __ovr_shaft_rpm__guess)
+  isnothing(__ovr_service_distance__guess) || (__guesses[service_distance] = __ovr_service_distance__guess)
 
   ### Initialization Equations
-  push!(__initialization_eqs, shaft.phi ~ 0)
+  push!(__initialization_eqs, service_distance ~ 0)
 
   ### Assertions
   __assertions = []
@@ -164,18 +152,10 @@ waypoint; the throttle ramps down only on the final leg.
   push!(__eqs, rudder.Current_x ~ 0)
   push!(__eqs, rudder.Current_y ~ 0)
   push!(__eqs, rudder.Rudder_Order ~ rudder_order)
-  push!(__eqs, governor.w_ref ~ shaft_rpm * π / 30)
-  push!(__eqs, wind.Wind_x ~ getindex(getproperty(env, :WindVector), 1))
-  push!(__eqs, wind.Wind_y ~ getindex(getproperty(env, :WindVector), 2))
-  push!(__eqs, route.pos_x ~ ship.pos_x)
-  push!(__eqs, route.pos_y ~ ship.pos_y)
-  push!(__eqs, pilot.pos_x ~ ship.pos_x)
-  push!(__eqs, pilot.pos_y ~ ship.pos_y)
-  push!(__eqs, pilot.psi ~ ship.Yaw)
-  push!(__eqs, pilot.target_x ~ route.target_x)
-  push!(__eqs, pilot.target_y ~ route.target_y)
-  push!(__eqs, rudder_order ~ pilot.rudder)
-  push!(__eqs, shaft_rpm ~ rpm_full * ifelse(route.final_leg > 0.5, pilot.throttle, 1))
+  push!(__eqs, ModelingToolkit.D_nounits(service_distance) ~ ship.Surge)
+  push!(__eqs, plant.shaft_speed_order ~ ifelse(t > t_step, rpm_high, rpm_low))
+  push!(__eqs, plant.hotel_power_demand ~ hotel_W)
+  push!(__eqs, rudder_order ~ 0)
   push!(__eqs, connect(ship.frame_a, hydro.frame_a, zrp.frame_a, prop_mount.frame_a, rudder_mount.frame_a))
   push!(__eqs, connect(prop_mount.frame_b, prop.frame_a))
   push!(__eqs, connect(rudder_mount.frame_b, rudder.frame_a))
@@ -187,11 +167,9 @@ waypoint; the throttle ramps down only on the final leg.
   push!(__eqs, connect(prop.Propeller_flow_diameter, rudder.Propeller_flow_diameter))
   push!(__eqs, connect(prop.Wake_Fraction, rudder.Wake_Fraction))
   push!(__eqs, connect(shaft.spline_b, prop.flange))
-  push!(__eqs, connect(governor.support, ground.spline))
-  push!(__eqs, connect(governor.spline, shaft.spline_a))
-  push!(__eqs, connect(ship.frame_a, wind.frame_a))
+  push!(__eqs, connect(plant.propeller_flange, shaft.spline_a))
 
   # Return completely constructed System
   return System(__eqs, t, __vars, __params; systems=__systems, initial_conditions=__initial_conditions, guesses=__guesses, name, initialization_eqs=__initialization_eqs, bindings=__bindings, assertions=__assertions)
 end
-export WaypointTransit
+export DieselShipShaftMachine

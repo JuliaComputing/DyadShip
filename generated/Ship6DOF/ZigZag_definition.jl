@@ -108,18 +108,18 @@ the reversals are the sign changes of the clocked relay state `controller.relay.
   # Subcomponent shaft of type RotationalComponents.Components.Inertia
   shaft_overrides = __pop_subcomponent_overrides!(__overrides, "shaft")
   push!(__systems, @named shaft = RotationalComponents.Components.Inertia(; J=J_shaft, shaft_overrides...))
-  # Subcomponent governor of type RotationalComponents.Sources.VelocitySource
-  governor_overrides = __pop_subcomponent_overrides!(__overrides, "governor")
-  push!(__systems, @named governor = RotationalComponents.Sources.VelocitySource(; governor_overrides...))
-  # Subcomponent ground of type RotationalComponents.Components.Fixed
-  ground_overrides = __pop_subcomponent_overrides!(__overrides, "ground")
-  push!(__systems, @named ground = RotationalComponents.Components.Fixed(; ground_overrides...))
   # Subcomponent rudder_mount of type MultibodyComponents.FixedTranslation
   rudder_mount_overrides = __pop_subcomponent_overrides!(__overrides, "rudder_mount")
   push!(__systems, @named rudder_mount = MultibodyComponents.FixedTranslation(; r=[Float64(-2), Float64(0), 4.5], render=false, rudder_mount_overrides...))
   # Subcomponent rudder of type DyadShip.Ship6DOF.Rudder
   rudder_overrides = __pop_subcomponent_overrides!(__overrides, "rudder")
   push!(__systems, @named rudder = DyadShip.Ship6DOF.Rudder(; rudder_overrides...))
+  # Subcomponent governor of type RotationalComponents.Sources.VelocitySource
+  governor_overrides = __pop_subcomponent_overrides!(__overrides, "governor")
+  push!(__systems, @named governor = RotationalComponents.Sources.VelocitySource(; governor_overrides...))
+  # Subcomponent ground of type RotationalComponents.Components.Fixed
+  ground_overrides = __pop_subcomponent_overrides!(__overrides, "ground")
+  push!(__systems, @named ground = RotationalComponents.Components.Fixed(; ground_overrides...))
   # Subcomponent controller of type DyadShip.Ship6DOF.ZigZagController
   controller_overrides = __pop_subcomponent_overrides!(__overrides, "controller")
   push!(__systems, @named controller = DyadShip.Ship6DOF.ZigZagController(; rudder_deg=Float64(20), psi_switch_deg=Float64(20), controller_overrides...))
@@ -144,8 +144,8 @@ the reversals are the sign changes of the clocked relay state `controller.relay.
   push!(__eqs, prop.Current_y ~ 0)
   push!(__eqs, rudder.Current_x ~ 0)
   push!(__eqs, rudder.Current_y ~ 0)
-  push!(__eqs, governor.w_ref ~ shaft_rpm * π / 30)
   push!(__eqs, rudder.Rudder_Order ~ rudder_order)
+  push!(__eqs, governor.w_ref ~ shaft_rpm * π / 30)
   push!(__eqs, rudder_order ~ controller.rudder)
   push!(__eqs, shaft_rpm ~ rpm)
   push!(__eqs, connect(ship.frame_a, hydro.frame_a, zrp.frame_a, prop_mount.frame_a, rudder_mount.frame_a))
@@ -158,9 +158,9 @@ the reversals are the sign changes of the clocked relay state `controller.relay.
   push!(__eqs, connect(prop.Propeller_speed, rudder.Propeller_speed))
   push!(__eqs, connect(prop.Propeller_flow_diameter, rudder.Propeller_flow_diameter))
   push!(__eqs, connect(prop.Wake_Fraction, rudder.Wake_Fraction))
+  push!(__eqs, connect(shaft.spline_b, prop.flange))
   push!(__eqs, connect(governor.support, ground.spline))
   push!(__eqs, connect(governor.spline, shaft.spline_a))
-  push!(__eqs, connect(shaft.spline_b, prop.flange))
   push!(__eqs, connect(ship.Yaw, controller.psi))
 
   # Return completely constructed System

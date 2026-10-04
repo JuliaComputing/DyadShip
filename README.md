@@ -105,7 +105,10 @@ cites no engine or test: they are reference values, not an OEM calibration
 docstring). `assert`s reject unordered, non-finite or non-positive tables and
 a negative idle rate.
 
-The fuel counters are nondecreasing at every accepted solver step.
+The `Fuel` counter has been nondecreasing at every accepted solver step in
+every run checked; `Fuel_extrapolated` is exactly constant over steps inside
+the table but can end the one step that contains a table-end crossing up to
+about 1e-9 kg below its start, because its rate jumps there.
 Interpolated values, including a `saveat` grid, which stores the interpolant
 rather than extra steps, can fall back inside a step that spans a kink of the
 rate (1.5e-5 kg on 0.41 kg in `DieselEngineReversing` without step
@@ -122,6 +125,37 @@ inside the SFOC table from start to end (`DieselEngineInRange`, synthetic
 load, rate samples reconciled with the counter), a stopped shaft with and
 without idle fuel, the sampling behaviour and the rejected
 parameter values.
+
+### How a powered ship comes together
+
+`Ship6DOF.PoweredSingleScrewShip` is the sample hull with its propeller,
+rudder and a free propeller shaft (`SingleScrewHull`, which is `StandardShip`
+without its ideal speed governor) plus a distance counter. A ship is that
+partial with one `plant` subcomponent connected to `shaft.spline_a`.
+
+A plant is any component that extends `Ship6DOF.ShipPowerPlantPorts`, which
+fixes what the hull needs and what the machinery reports: the
+`propeller_flange`, the orders `shaft_speed_order` [rpm] and
+`hotel_power_demand` [W], and the observation outputs in SI units (fuel mass
+rate, fuel counter, out-of-table fuel counter and coverage flag for the main
+engine and for the generating set; shaft, hotel, generating-set and
+shaft-machine power with their energy integrals; running states and running
+times). Dyad has no replaceable components, so the slots inside a plant are
+conventional subcomponent names (`main_engine`, `gearbox`, `pto`,
+`genset_engine`, `genset_machine`, `hotel_load`) with a partial component for
+the connectors of each kind: `Propulsion.DieselEnginePorts` for an engine,
+`Ship6DOF.ShaftMachinePorts` for an electrical machine on a shaft.
+
+Two plants are built from this library and the standard component libraries
+only: `DieselMechanicalPlant` (synthetic engine preset A through an ideal
+gear to the propeller, synthetic preset B driving a DC machine that feeds a
+conductance hotel load) and `DieselShaftMachinePlant`, the same with a
+`DCShaftMachine` on the engine shaft and the bus. That machine is an ideal
+EMF behind a resistance with no control, so it takes power from the bus
+below its matching engine speed and feeds the bus above it. Everything in
+them is synthetic or ideal; they show the structure, not an installation.
+`scripts/validate_ship_power_plant.jl` checks signs, the power balance from
+engines to propeller and hotel load, and the counters.
 
 `Propulsion.SyntheticDieselEngineA` and `SyntheticDieselEngineB` are parameter
 presets of the one `SimpleDieselEngine`: a wrapper without equations holds the

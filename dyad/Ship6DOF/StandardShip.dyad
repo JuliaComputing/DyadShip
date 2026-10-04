@@ -1,5 +1,5 @@
 """
-Standard 6-DOF single-screw ship assembly used by the manoeuvring analyses.
+Single-screw hull with propeller and rudder, and a free propeller shaft.
 
 Composition (world z up, free surface at z = 0):
 - `ship`: `ShipBody` (mass, inertia, hydrostatics) with the upstream 100 m,
@@ -7,16 +7,16 @@ Composition (world z up, free surface at z = 0):
 - `hydro`: `HydrodynamicXYY` MMG surge/sway/yaw forces and added mass.
 - `zrp`: `HydrodynamicZRP` heave/roll/pitch damping.
 - `prop`: `Propeller1Q` mounted 1 m forward of the aft perpendicular, 2 m
-  above the keel, driven through a shaft inertia by a `VelocitySource` that
-  tracks `shaft_rpm` (an ideal governor). `CrashStop` repeats this assembly
-  with the four-quadrant `Propeller4Q`.
+  above the keel, on the shaft inertia `shaft`.
 - `rudder`: `Rudder` with its stock 2 m aft of the aft perpendicular, 4.5 m
   above the keel, fed by the propeller slipstream.
 
-Extending components set the two command variables `rudder_order` [deg,
-positive to port] and `shaft_rpm` [rpm]. No wind or current.
+Whatever drives the propeller connects to `shaft.spline_a`; positive rotation
+is ahead. Extending components also set the rudder order `rudder_order` [deg,
+positive to port], and give the shaft its initial angle and speed (directly
+or through what they connect to it). No wind or current.
 """
-partial component StandardShip
+partial component SingleScrewHull
   "Initial speed along world x"
   parameter U0::Velocity = 6.69
   "Shaft inertia including the propeller and entrained water"
@@ -28,16 +28,11 @@ partial component StandardShip
   prop_mount = MultibodyComponents.FixedTranslation(r = [1, 0, 2], render = false)
   prop = Propeller1Q(Diameter = 4, P_D = 1.0, Ae_Ao = 0.55, Z = 4)
   shaft = RotationalComponents.Components.Inertia(J = J_shaft)
-  governor = RotationalComponents.Sources.VelocitySource()
-  ground = RotationalComponents.Components.Fixed()
   rudder_mount = MultibodyComponents.FixedTranslation(r = [-2, 0, 4.5], render = false)
   rudder = Rudder()
   "Rudder angle order [deg], positive to port"
   variable rudder_order::Real
-  "Shaft speed order [rpm]"
-  variable shaft_rpm::Real
 relations
-  initial shaft.phi = 0
   connect(ship.frame_a, hydro.frame_a, zrp.frame_a, prop_mount.frame_a, rudder_mount.frame_a)
   connect(prop_mount.frame_b, prop.frame_a)
   connect(rudder_mount.frame_b, rudder.frame_a)
@@ -54,11 +49,31 @@ relations
   connect(prop.Propeller_speed, rudder.Propeller_speed)
   connect(prop.Propeller_flow_diameter, rudder.Propeller_flow_diameter)
   connect(prop.Wake_Fraction, rudder.Wake_Fraction)
+  connect(shaft.spline_b, prop.flange)
+  rudder.Rudder_Order = rudder_order
+end
+
+"""
+Standard 6-DOF single-screw ship assembly used by the manoeuvring analyses:
+`SingleScrewHull` with its shaft driven by a `VelocitySource` that tracks
+`shaft_rpm` (an ideal governor; no engine, no fuel). `CrashStop` repeats this
+assembly with the four-quadrant `Propeller4Q`; `PoweredSingleScrewShip` puts
+a power plant on the same hull instead.
+
+Extending components set the two command variables `rudder_order` [deg,
+positive to port] and `shaft_rpm` [rpm].
+"""
+partial component StandardShip
+  extends SingleScrewHull
+  governor = RotationalComponents.Sources.VelocitySource()
+  ground = RotationalComponents.Components.Fixed()
+  "Shaft speed order [rpm]"
+  variable shaft_rpm::Real
+relations
+  initial shaft.phi = 0
   connect(governor.support, ground.spline)
   connect(governor.spline, shaft.spline_a)
-  connect(shaft.spline_b, prop.flange)
   governor.w_ref = shaft_rpm * π / 30
-  rudder.Rudder_Order = rudder_order
 end
 
 """

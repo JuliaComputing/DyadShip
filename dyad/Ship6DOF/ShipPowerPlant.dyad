@@ -1,0 +1,279 @@
+"""
+Connectors of a rotating electrical machine on a shaft: a shaft `flange`, the two
+terminals `p` and `n`, and the electrical power it delivers. The shaft machine and the
+generator slots of a ship power plant take components that extend this.
+"""
+partial component ShaftMachinePorts
+  flange = Spline()
+  "Positive terminal"
+  p = Pin()
+  "Negative terminal"
+  n = Pin()
+  "Electrical power delivered at the terminals [W]: positive when the machine generates, negative when it motors"
+  electric_power = RealOutput()
+end
+
+"""
+Ideal DC machine on a shaft: a back-EMF `k · w` behind a series resistance `R`, with its
+housing fixed. It is a composition of `ElectricalComponents.Analog.Basic.RotationalEMF`,
+`Resistor` and a `PowerSensor`; no equation of its own beyond naming the sensor output.
+
+There is no field or converter control: the terminal current is
+`(k · w - v_terminal) / R`, so the machine generates when its EMF is above the bus
+voltage and motors when it is below. No iron, friction or windage loss, no inductance,
+no saturation, no rating limit.
+"""
+component DCShaftMachine
+  extends ShaftMachinePorts
+  "EMF constant [V·s/rad] (equal to the torque constant [N·m/A])"
+  parameter k::Real
+  "Series (armature) resistance [Ω]"
+  parameter R::Real
+  emf = ElectricalComponents.Analog.Basic.RotationalEMF(k = k)
+  armature = ElectricalComponents.Analog.Basic.Resistor(R = R)
+  sensor = ElectricalComponents.Analog.Sensors.PowerSensor()
+  housing = RotationalComponents.Components.Fixed()
+relations
+  connect(flange, emf.rotor)
+  connect(emf.housing, housing.spline)
+  connect(emf.p, armature.p)
+  connect(armature.n, sensor.pc)
+  connect(sensor.nc, sensor.pv, p)
+  connect(emf.n, sensor.nv, n)
+  electric_power = sensor.power
+end
+
+"""
+Connectors, commands and observation outputs of a ship power plant: what a hull with a
+propeller shaft needs from the machinery, and what the machinery reports. A plant is a
+component that extends this, holds its engines, gear, electrical machines and loads as
+subcomponents, and supplies the rates, powers and states; this partial integrates them,
+so every plant has the same counter semantics.
+
+All quantities are SI. Signs:
+- `propeller_flange`: positive angle is ahead rotation. `shaft_power` is positive when
+  the plant delivers work to the propeller shaft.
+- electrical powers are positive into the bus for sources (`genset_electric_power`,
+  `pto_electric_power`) and positive into the consumer for `hotel_electric_power`. A
+  shaft machine that takes power from the bus to drive the shaft (power take-in) reports
+  a negative `pto_electric_power`.
+
+Fuel is reported per consumer, one engine and one fuel each. `*_fuel_consumed_mass` is a
+counter from zero at the start: difference it over an interval, never integrate it.
+`*_fuel_extrapolated_mass` is the part metered outside the engine's fuel table; an
+interval of the fuel counter is inside the table exactly when the extrapolated counter
+did not change over it. `*_sfoc_covered` is the instantaneous table-coverage flag; it is
+not a calibration statement, and its value at exactly zero load depends on the engine
+model, so use the counter for intervals.
+
+Energies and running times are integrals from zero at the start. `shaft_energy` and
+`pto_electric_energy` are signed and are not monotone counters when the power changes
+sign. Read counters at the accepted solver steps or pass known kink times as `tstops`;
+values between steps are the solver's interpolant. An out-of-table fuel counter is exactly
+constant over steps that lie inside the table, but the one step that contains a
+table-end crossing can end below its start by an amount within the solver's absolute
+tolerance (1e-10 to 6e-10 kg measured here), so it is not strictly monotone.
+
+Conventional subcomponent names inside a plant: `main_engine`, `gearbox`, `pto`
+(optional shaft machine), `genset_engine`, `genset_machine`, `hotel_load`.
+"""
+partial component ShipPowerPlantPorts
+  "Propeller shaft; positive angle is ahead rotation"
+  propeller_flange = Spline()
+  "Ordered propeller-shaft speed [rpm]"
+  shaft_speed_order = RealInput()
+  "Hotel (ship service) electrical demand at the bus [W]"
+  hotel_power_demand = RealInput()
+
+  "Main engine fuel mass rate [kg/s], never negative"
+  main_engine_fuel_mass_rate = RealOutput()
+  "Main engine cumulative fuel mass [kg], nondecreasing"
+  main_engine_fuel_consumed_mass = RealOutput()
+  "Part of the main engine fuel metered outside its fuel table [kg]"
+  main_engine_fuel_extrapolated_mass = RealOutput()
+  "Main engine fuel table coverage, 0 or 1"
+  main_engine_sfoc_covered = RealOutput()
+  "Generating set fuel mass rate [kg/s], never negative"
+  genset_fuel_mass_rate = RealOutput()
+  "Generating set cumulative fuel mass [kg], nondecreasing"
+  genset_fuel_consumed_mass = RealOutput()
+  "Part of the generating set fuel metered outside its fuel table [kg]"
+  genset_fuel_extrapolated_mass = RealOutput()
+  "Generating set fuel table coverage, 0 or 1"
+  genset_sfoc_covered = RealOutput()
+
+  "Mechanical power delivered to the propeller shaft [W]"
+  shaft_power = RealOutput()
+  "Work delivered to the propeller shaft [J], signed"
+  shaft_energy = RealOutput()
+  "Electrical power delivered to the hotel load [W]"
+  hotel_electric_power = RealOutput()
+  "Electrical energy delivered to the hotel load [J]"
+  hotel_electric_energy = RealOutput()
+  "Electrical power delivered to the bus by the generating set [W]"
+  genset_electric_power = RealOutput()
+  "Electrical energy delivered to the bus by the generating set [J]"
+  genset_electric_energy = RealOutput()
+  "Electrical power delivered to the bus by the shaft machine [W]: positive take-off, negative take-in, zero without one"
+  pto_electric_power = RealOutput()
+  "Electrical energy delivered to the bus by the shaft machine [J], signed"
+  pto_electric_energy = RealOutput()
+
+  "Main engine running state, 0 or 1"
+  main_engine_on = RealOutput()
+  "Main engine running time [s]"
+  main_engine_running_time = RealOutput()
+  "Generating set running state, 0 or 1"
+  genset_on = RealOutput()
+  "Generating set running time [s]"
+  genset_running_time = RealOutput()
+
+  variable shaft_work::Real
+  variable hotel_work::Real
+  variable genset_work::Real
+  variable pto_work::Real
+  variable main_engine_time::Real
+  variable genset_time::Real
+relations
+  initial shaft_work = 0
+  initial hotel_work = 0
+  initial genset_work = 0
+  initial pto_work = 0
+  initial main_engine_time = 0
+  initial genset_time = 0
+  der(shaft_work) = shaft_power
+  der(hotel_work) = hotel_electric_power
+  der(genset_work) = genset_electric_power
+  der(pto_work) = pto_electric_power
+  der(main_engine_time) = main_engine_on
+  der(genset_time) = genset_on
+  shaft_energy = shaft_work
+  hotel_electric_energy = hotel_work
+  genset_electric_energy = genset_work
+  pto_electric_energy = pto_work
+  main_engine_running_time = main_engine_time
+  genset_running_time = genset_time
+end
+
+"""
+Geared diesel propulsion with a diesel generating set on a DC bus, built only from this
+library's engine presets and from `RotationalComponents` / `ElectricalComponents`
+primitives. It leaves the shaft-machine slot open: `DieselMechanicalPlant` closes it with
+nothing, `DieselShaftMachinePlant` with a `DCShaftMachine`.
+
+- `main_engine` (`Propulsion.SyntheticDieselEngineA`) drives `engine_inertia` and, through
+  the ideal `gearbox` (engine speed / shaft speed = `gear_ratio`), the `propeller_flange`.
+  Its speed demand is `shaft_speed_order · gear_ratio`.
+- `genset_engine` (`Propulsion.SyntheticDieselEngineB`) is governed at `genset_rpm` and
+  drives `genset_machine`, a `DCShaftMachine` whose EMF equals `V_bus` at that speed.
+- `hotel_load` is a conductance `hotel_power_demand / V_bus²` between the bus and
+  ground, so it draws the demand at the nominal voltage and slightly less when the bus
+  voltage sags under load. `hotel_electric_power` is what it actually receives.
+
+**Synthetic.** The engine presets are invented round numbers, not manufacturer data; the
+gear, machines and bus are ideal elements with round parameters chosen so the plant
+suits the sample hull. Nothing here is a model of a real installation. Neither engine has
+a stopped state, so both `_on` outputs are 1 and the running times equal the elapsed
+time. No gear loss, no engine-driven auxiliaries, no bus capacitance, no protection.
+"""
+partial component DieselPlantBase
+  extends ShipPowerPlantPorts
+  "Engine speed divided by propeller-shaft speed"
+  parameter gear_ratio::Real = 18
+  "Main engine rotating inertia [kg·m²]"
+  parameter J_engine::Real = 15
+  "Initial main engine speed [rpm]"
+  parameter engine_rpm0::Real = 1500
+  "Generating set speed [rpm]"
+  parameter genset_rpm::Real = 1800
+  "Generating set rotating inertia [kg·m²]"
+  parameter J_genset::Real = 30
+  "Nominal bus voltage [V]: the generating set EMF at `genset_rpm`"
+  parameter V_bus::Real = 1000
+  "Series resistance of the generating set machine [Ω]"
+  parameter R_genset::Real = 0.01
+
+  main_engine = DyadShip.Propulsion.SyntheticDieselEngineA()
+  engine_inertia = RotationalComponents.Components.Inertia(J = J_engine)
+  gearbox = RotationalComponents.Components.IdealGear(ratio = gear_ratio)
+  gear_housing = RotationalComponents.Components.Fixed()
+  genset_engine = DyadShip.Propulsion.SyntheticDieselEngineB()
+  genset_inertia = RotationalComponents.Components.Inertia(J = J_genset)
+  genset_machine = DCShaftMachine(k = V_bus / (genset_rpm * π / 30), R = R_genset)
+  hotel_load = ElectricalComponents.Analog.Basic.VariableConductor()
+  hotel_sensor = ElectricalComponents.Analog.Sensors.PowerSensor()
+  hotel_ambient = ThermalComponents.Sources.FixedTemperature(T = 300.15)
+  bus_ground = ElectricalComponents.Analog.Basic.Ground()
+  "Propeller-shaft speed [rad/s]"
+  variable shaft_w::AngularVelocity
+relations
+  initial engine_inertia.w = engine_rpm0 * π / 30
+  initial genset_inertia.w = genset_rpm * π / 30
+
+  # Propulsion line
+  connect(main_engine.flange, engine_inertia.spline_a)
+  connect(engine_inertia.spline_b, gearbox.spline_a)
+  connect(gearbox.spline_b, propeller_flange)
+  connect(gearbox.support, gear_housing.spline)
+  main_engine.RPM_demand = shaft_speed_order * gear_ratio
+  shaft_w = der(propeller_flange.phi)
+  shaft_power = -propeller_flange.tau * shaft_w
+
+  # Generating set and bus
+  connect(genset_engine.flange, genset_inertia.spline_a)
+  connect(genset_inertia.spline_b, genset_machine.flange)
+  genset_engine.RPM_demand = genset_rpm
+  connect(genset_machine.p, hotel_sensor.pc, hotel_sensor.pv)
+  connect(hotel_sensor.nc, hotel_load.p)
+  connect(genset_machine.n, hotel_load.n, hotel_sensor.nv, bus_ground.g)
+  connect(hotel_load.heat_port, hotel_ambient.port)
+  hotel_load.G = hotel_power_demand / V_bus^2
+
+  # Observation outputs
+  main_engine_fuel_mass_rate = main_engine.Inst_Fuel
+  main_engine_fuel_consumed_mass = main_engine.Fuel
+  main_engine_fuel_extrapolated_mass = main_engine.Fuel_extrapolated
+  main_engine_sfoc_covered = main_engine.SFOC_valid
+  genset_fuel_mass_rate = genset_engine.Inst_Fuel
+  genset_fuel_consumed_mass = genset_engine.Fuel
+  genset_fuel_extrapolated_mass = genset_engine.Fuel_extrapolated
+  genset_sfoc_covered = genset_engine.SFOC_valid
+  hotel_electric_power = hotel_sensor.power
+  genset_electric_power = genset_machine.electric_power
+  main_engine_on = 1
+  genset_on = 1
+end
+
+"""
+`DieselPlantBase` with the shaft-machine slot empty: propulsion is mechanical, the hotel
+load is carried by the generating set alone, and `pto_electric_power` is zero.
+"""
+component DieselMechanicalPlant
+  extends DieselPlantBase
+relations
+  pto_electric_power = 0
+end
+
+"""
+`DieselPlantBase` with a `DCShaftMachine` in the shaft-machine slot `pto`, on the engine
+side of the gearbox and on the same bus as the generating set.
+
+The machine has no control. Its EMF equals `V_bus` at the engine speed `pto_match_rpm`:
+above that speed it feeds the bus and relieves the generating set (power take-off), below
+it draws from the bus and helps drive the shaft (power take-in). The current is
+`(EMF - bus voltage) / R_pto`, so `R_pto` sets how strongly the power follows the engine
+speed; a real shaft generator has a converter or field control instead.
+"""
+component DieselShaftMachinePlant
+  extends DieselPlantBase
+  "Engine speed at which the shaft machine EMF equals `V_bus` [rpm]"
+  parameter pto_match_rpm::Real = 1500
+  "Series resistance of the shaft machine [Ω]"
+  parameter R_pto::Real = 0.5
+  pto = DCShaftMachine(k = V_bus / (pto_match_rpm * π / 30), R = R_pto)
+relations
+  connect(pto.flange, engine_inertia.spline_b)
+  connect(pto.p, genset_machine.p)
+  connect(pto.n, bus_ground.g)
+  pto_electric_power = pto.electric_power
+end
