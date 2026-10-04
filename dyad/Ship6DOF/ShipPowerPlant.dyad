@@ -25,10 +25,10 @@ no saturation, no rating limit.
 """
 component DCShaftMachine
   extends ShaftMachinePorts
-  "EMF constant [V·s/rad] (equal to the torque constant [N·m/A])"
-  parameter k::Real
-  "Series (armature) resistance [Ω]"
-  parameter R::Real
+  "EMF constant [V·s/rad] (equal to the torque constant [N·m/A]), positive"
+  parameter k::Real(min = 0)
+  "Series (armature) resistance [Ω], positive: the machine is singular at zero"
+  parameter R::Real(min = 0)
   emf = ElectricalComponents.Analog.Basic.RotationalEMF(k = k)
   armature = ElectricalComponents.Analog.Basic.Resistor(R = R)
   sensor = ElectricalComponents.Analog.Sensors.PowerSensor()
@@ -69,10 +69,12 @@ model, so use the counter for intervals.
 Energies and running times are integrals from zero at the start. `shaft_energy` and
 `pto_electric_energy` are signed and are not monotone counters when the power changes
 sign. Read counters at the accepted solver steps or pass known kink times as `tstops`;
-values between steps are the solver's interpolant. An out-of-table fuel counter is exactly
-constant over steps that lie inside the table, but the one step that contains a
-table-end crossing can end below its start by an amount within the solver's absolute
-tolerance (1e-10 to 6e-10 kg measured here), so it is not strictly monotone.
+values between steps are the solver's interpolant. An order that steps is a jump of the
+fuel rate: give its time as a `tstops` entry.
+
+The outputs describe one main engine and the generating sets as one aggregate. A plant
+with several sets, or one that needs start counts or per-set running times for upkeep,
+adds outputs of its own next to these.
 
 Conventional subcomponent names inside a plant: `main_engine`, `gearbox`, `pto`
 (optional shaft machine), `genset_engine`, `genset_machine`, `hotel_load`.
@@ -168,7 +170,10 @@ nothing, `DieselShaftMachinePlant` with a `DCShaftMachine`.
   drives `genset_machine`, a `DCShaftMachine` whose EMF equals `V_bus` at that speed.
 - `hotel_load` is a conductance `hotel_power_demand / V_bus²` between the bus and
   ground, so it draws the demand at the nominal voltage and slightly less when the bus
-  voltage sags under load. `hotel_electric_power` is what it actually receives.
+  voltage sags under load. `hotel_electric_power` is what it actually receives, and it
+  depends on the bus voltage: the same demand gives 396.8 kW in `DieselShipTransit` and
+  397.4 kW with the shaft machine. Compare two plants on `hotel_electric_energy`, not on
+  the demand.
 
 **Synthetic.** The engine presets are invented round numbers, not manufacturer data; the
 gear, machines and bus are ideal elements with round parameters chosen so the plant

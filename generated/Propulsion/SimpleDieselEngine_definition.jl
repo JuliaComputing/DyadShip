@@ -83,7 +83,7 @@ that of the number the caller supplied.
 |---|---|---|---|
 | `Inst_Fuel` | kg/s | rate | Fuel mass rate ≥ 0: load-dependent fuel at the brake power plus `m_dot_idle`; one engine, one fuel |
 | `Fuel` | kg | counter | `∫ Inst_Fuel dt` from `0` at the simulation start; nondecreasing; difference it over an interval, do not integrate it again |
-| `Fuel_extrapolated` | kg | counter | The part of `Fuel` that was metered with a held SFOC end value (idle fuel excluded), from `0` at the simulation start; nondecreasing apart from the table-end step described under "Sampling the counters"; an interval is inside the table coverage iff this counter did not change over it |
+| `Fuel_extrapolated` | kg | counter | The part of `Fuel` that was metered with a held SFOC end value (idle fuel excluded), from `0` at the simulation start; nondecreasing at accepted steps (see "Sampling the counters"); an interval is inside the table coverage iff this counter did not change over it |
 | `ShaftPower` | W | power | Signed mechanical power delivered to the shaft (producer convention) |
 | `KWh` | kWh | net work | `∫ ShaftPower dt / 3.6e6`, signed as upstream: it decreases while the shaft is driven, so it is not a monotone counter |
 | `SFOC_valid` | 0/1 | table coverage | `1` while the brake power lies inside the SFOC table range or no load-dependent fuel is metered; `0` while a held end value is in use. Instantaneous; not a calibration statement |
@@ -98,21 +98,30 @@ straddles a kink that interpolant overshoots. `saveat` does not avoid this: it s
 interpolated values and does not make the solver step to the requested times. In
 `DieselEngineReversing` without step alignment (tolerances 1e-6) one accepted step spans
 the zero-power crossing, and both the dense output and a `saveat = 0.02` grid show a
-counter that falls back by 1.5e-5 kg on 0.41 kg. That size follows the step length, not
+counter that falls back by 4.6e-5 kg on 0.41 kg. That size follows the step length, not
 the solver tolerance.
 
 Make the solver end a step at each crossing by passing the crossing times as `tstops`
 when they are known, as `DieselEngineReversing` does (10 s and 20 s): its dense fuel
 counter is then nondecreasing with no tolerance. Where the crossing times are not known
 in advance, export the counters at the accepted steps (`sol.t` of a run without
-`saveat`). `Fuel_extrapolated` changes slope abruptly at the table ends, whose crossing
-times are generally unknown, so read interval quality at accepted steps (its dense
-output falls back by up to 2.7e-5 kg in `DieselEngineReversing`). Its rate jumps at a
-table end, and an integration step is not sign-preserving across a jump: the one
-accepted step that contains a table-end crossing can end slightly *below* its start
-(1e-10 to 6e-10 kg measured at tolerances of 1e-6, within the solver's absolute
-tolerance). Over steps that lie wholly inside the table the counter is exactly constant,
-which is what the interval rule uses.
+`saveat`).
+
+`Fuel_extrapolated` has a rate that jumps at the table ends. Where the brake power
+enters the table the rate drops to zero, and a solver step that began outside and ran
+inside could end slightly below its start (1e-10 to 6e-10 kg was measured before the
+step boundaries below existed). The engine therefore ends a solver step at each table
+entry, a relative 1e-6 inside the table (`table_entry_low`, `table_entry_high`, both
+`StepAtRisingCrossing`): the steps after an entry lie wholly inside the table and leave
+the counter exactly constant, and in every run checked the counter is nondecreasing at
+every accepted step with no tolerance. Leaving the table has no step boundary on
+purpose: cutting a step back to a point where a rate switches on would write the
+interpolant's undershoot into the counter. This is an arrangement of step boundaries,
+not a proof of monotonicity for every solver, and the dense output of the counter still
+falls back inside a step that leaves the table (up to 9e-5 kg in
+`DieselEngineReversing` without `tstops`), so read interval quality at accepted steps.
+An order that steps (a jump of the demand, hence of the torque and of the fuel rate) is
+a jump, not a kink: give its time as a `tstops` entry.
 
 Do not rely on `automatic_discontinuity_detection` for this. It turns `ifelse`
 conditions into events, and an event whose condition starts exactly on its threshold is
@@ -354,6 +363,12 @@ Simplifications relative to upstream:
 
   ### Components
   push!(__systems, @named flange = __Dyad__Spline())
+  # Subcomponent table_entry_low of type DyadShip.Propulsion.StepAtRisingCrossing
+  table_entry_low_overrides = __pop_subcomponent_overrides!(__overrides, "table_entry_low")
+  push!(__systems, @named table_entry_low = DyadShip.Propulsion.StepAtRisingCrossing(; table_entry_low_overrides...))
+  # Subcomponent table_entry_high of type DyadShip.Propulsion.StepAtRisingCrossing
+  table_entry_high_overrides = __pop_subcomponent_overrides!(__overrides, "table_entry_high")
+  push!(__systems, @named table_entry_high = DyadShip.Propulsion.StepAtRisingCrossing(; table_entry_high_overrides...))
 
   ### Check there are no unmatched overrides
   isempty(__overrides) || throw(ArgumentError("overrides: [$(join(keys(__overrides), ", "))] don't match names found in model. These names may exist in the model but could have been conditionally excluded."))
@@ -384,9 +399,9 @@ Simplifications relative to upstream:
 
   ### Assertions
   __assertions = []
-  push!(__assertions, (table_knots_valid(SFOC_P) > 0.5 => "SimpleDieselEngine: SFOC_P must be finite, nonnegative and strictly increasing (at SimpleDieselEngine.dyad:219:3)"))
-  push!(__assertions, (table_values_valid(SFOC_g) > 0.5 => "SimpleDieselEngine: SFOC_g must be finite and positive (at SimpleDieselEngine.dyad:220:3)"))
-  push!(__assertions, (rate_valid(m_dot_idle) > 0.5 => "SimpleDieselEngine: m_dot_idle must be finite and nonnegative (at SimpleDieselEngine.dyad:221:3)"))
+  push!(__assertions, (table_knots_valid(SFOC_P) > 0.5 => "SimpleDieselEngine: SFOC_P must be finite, nonnegative and strictly increasing (at SimpleDieselEngine.dyad:232:3)"))
+  push!(__assertions, (table_values_valid(SFOC_g) > 0.5 => "SimpleDieselEngine: SFOC_g must be finite and positive (at SimpleDieselEngine.dyad:233:3)"))
+  push!(__assertions, (rate_valid(m_dot_idle) > 0.5 => "SimpleDieselEngine: m_dot_idle must be finite and nonnegative (at SimpleDieselEngine.dyad:234:3)"))
 
   ### Equations
   push!(__eqs, shaft_w ~ ModelingToolkit.D_nounits(flange.phi))
@@ -409,6 +424,8 @@ Simplifications relative to upstream:
   push!(__eqs, Inst_Fuel ~ load_fuel + m_dot_idle)
   push!(__eqs, ModelingToolkit.D_nounits(fuel_mass) ~ Inst_Fuel)
   push!(__eqs, Fuel ~ fuel_mass)
+  push!(__eqs, table_entry_low.u ~ brake_power_kW - SFOC_P[1] * (1 + 0.000001))
+  push!(__eqs, table_entry_high.u ~ SFOC_P[n_sfoc] * (1 - 0.000001) - brake_power_kW)
   push!(__eqs, ModelingToolkit.D_nounits(fuel_extrapolated_mass) ~ (1 - SFOC_valid) * load_fuel)
   push!(__eqs, Fuel_extrapolated ~ fuel_extrapolated_mass)
 

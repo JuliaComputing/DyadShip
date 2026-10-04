@@ -16,11 +16,6 @@ const PRESETS = joinpath(pkgdir(DyadShip), "assets", "presets", "Synthetic")
 successful_retcode(sol) = string(sol.retcode) == "Success"
 nondecreasing(v) = all(diff(v) .>= 0)
 
-# An out-of-table fuel counter has a rate that jumps at a table end, and the one accepted
-# step that contains the crossing can end slightly below its start. The allowance is the
-# local error the analyses request (abstol = reltol = 1e-6), not a figure taken from a run.
-almost_nondecreasing(v) = all(diff(v) .>= -(1e-6 .+ 1e-6 .* abs.(v[1:(end - 1)])))
-
 # Independent piecewise-linear lookup of an engine preset file (callers stay inside it).
 function preset_rate(file, P_W)
     a = TOML.parsefile(joinpath(PRESETS, file))
@@ -56,9 +51,12 @@ end
         @test all(val(m.prop.Thrust)[late] .> 0)
         @test all(val(p.shaft_power) .> 0)                    # plant drives the shaft ahead
         @test all(val(p.main_engine.ShaftPower) .>= 0)
-        @test all(val(p.main_engine_fuel_mass_rate) .>= 0) && all(val(p.genset_fuel_mass_rate) .>= 0)
-        @test all(val(p.hotel_electric_power) .> 0) && all(val(p.genset_electric_power) .> 0)
-        @test all(val(p.pto_electric_power) .== 0) && last_of(p.pto_electric_energy) == 0
+        @test all(val(p.main_engine_fuel_mass_rate) .>= 0)
+        @test all(val(p.genset_fuel_mass_rate) .>= 0)
+        @test all(val(p.hotel_electric_power) .> 0)
+        @test all(val(p.genset_electric_power) .> 0)
+        @test all(val(p.pto_electric_power) .== 0)
+        @test last_of(p.pto_electric_energy) == 0
     end
 
     @testset "propulsion line at the steady state" begin
@@ -104,15 +102,18 @@ end
         # Rates equal an independent lookup of the two preset files at the engine powers.
         a = preset_rate("diesel_engine_a.toml", last_of(p.main_engine.ShaftPower))
         b = preset_rate("diesel_engine_b.toml", last_of(p.genset_engine.ShaftPower))
-        @test a.inside && b.inside
+        @test a.inside
+        @test b.inside
         @test last_of(p.main_engine_fuel_mass_rate) ≈ a.rate rtol = 1e-9
         @test last_of(p.genset_fuel_mass_rate) ≈ b.rate rtol = 1e-9
         # After the start both engines stay inside their tables.
-        @test all(val(p.main_engine_sfoc_covered)[late] .== 1) && all(val(p.genset_sfoc_covered)[late] .== 1)
+        @test all(val(p.main_engine_sfoc_covered)[late] .== 1)
+        @test all(val(p.genset_sfoc_covered)[late] .== 1)
         for x in (p.main_engine_fuel_extrapolated_mass, p.genset_fuel_extrapolated_mass)
             @test maximum(val(x)[late]) == minimum(val(x)[late])
         end
-        # Counters start at zero and do not decrease at the accepted steps.
+        # Counters start at zero and do not decrease at the accepted steps, the two
+        # out-of-table counters included, with no tolerance.
         for x in (p.main_engine_fuel_consumed_mass, p.genset_fuel_consumed_mass, p.hotel_electric_energy,
                   p.genset_electric_energy, p.shaft_energy, p.main_engine_running_time, p.genset_running_time, m.service_distance)
             @test val(x)[1] == 0
@@ -120,8 +121,7 @@ end
         end
         for x in (p.main_engine_fuel_extrapolated_mass, p.genset_fuel_extrapolated_mass)
             @test val(x)[1] == 0
-            @test almost_nondecreasing(val(x))
-            @printf("  transit: out-of-table counter, largest fall at an accepted step %.3e kg\n", -min(0.0, minimum(diff(val(x)))))
+            @test nondecreasing(val(x))
         end
         @test all(val(p.main_engine_fuel_extrapolated_mass) .<= val(p.main_engine_fuel_consumed_mass))
         # No stopped state: running time is the elapsed time. Straight course: the
@@ -160,7 +160,8 @@ end
         @test val(p.main_engine.ShaftPower)[i_hi] > val(p.shaft_power)[i_hi]
         # The signed energy falls during take-in and rises during take-off.
         E = val(p.pto_electric_energy)
-        @test E[i_lo] < 0 && E[i_hi] > E[i_lo]
+        @test E[i_lo] < 0
+        @test E[i_hi] > E[i_lo]
         @test all(val(p.shaft_power) .> 0)
     end
 
@@ -179,7 +180,8 @@ end
 
     @testset "fuel moves between the consumers; counters" begin
         late = findall(>=(100.0), t)
-        @test all(val(p.main_engine_sfoc_covered)[late] .== 1) && all(val(p.genset_sfoc_covered)[late] .== 1)
+        @test all(val(p.main_engine_sfoc_covered)[late] .== 1)
+        @test all(val(p.genset_sfoc_covered)[late] .== 1)
         # Take-off relieves the generating set and loads the main engine.
         @test val(p.genset_fuel_mass_rate)[i_hi] < val(p.genset_fuel_mass_rate)[i_lo]
         @test val(p.main_engine_fuel_mass_rate)[i_hi] > val(p.main_engine_fuel_mass_rate)[i_lo]
@@ -188,9 +190,8 @@ end
             @test nondecreasing(val(x))
         end
         for x in (p.main_engine_fuel_extrapolated_mass, p.genset_fuel_extrapolated_mass)
-            @test almost_nondecreasing(val(x))
+            @test nondecreasing(val(x))
             @test maximum(val(x)[late]) == minimum(val(x)[late])
-            @printf("  shaft machine: out-of-table counter, largest fall at an accepted step %.3e kg\n", -min(0.0, minimum(diff(val(x)))))
         end
         @printf("  shaft machine: take-in %.1f kW at %.1f rpm (set %.1f kW, main engine %.1f kW for %.1f kW on the shaft); take-off %.1f kW at %.1f rpm (set %.1f kW, main engine %.1f kW for %.1f kW on the shaft)\n",
             -val(p.pto_electric_power)[i_lo] / 1e3, val(m.prop.rpm)[i_lo], val(p.genset_electric_power)[i_lo] / 1e3, val(p.main_engine.ShaftPower)[i_lo] / 1e3, val(p.shaft_power)[i_lo] / 1e3,
