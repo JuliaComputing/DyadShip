@@ -126,18 +126,18 @@ superstructure wind load acts through `ShipWind`.
   # Subcomponent shaft of type RotationalComponents.Components.Inertia
   shaft_overrides = __pop_subcomponent_overrides!(__overrides, "shaft")
   push!(__systems, @named shaft = RotationalComponents.Components.Inertia(; J=J_shaft, shaft_overrides...))
-  # Subcomponent governor of type RotationalComponents.Sources.VelocitySource
-  governor_overrides = __pop_subcomponent_overrides!(__overrides, "governor")
-  push!(__systems, @named governor = RotationalComponents.Sources.VelocitySource(; governor_overrides...))
-  # Subcomponent ground of type RotationalComponents.Components.Fixed
-  ground_overrides = __pop_subcomponent_overrides!(__overrides, "ground")
-  push!(__systems, @named ground = RotationalComponents.Components.Fixed(; ground_overrides...))
   # Subcomponent rudder_mount of type MultibodyComponents.FixedTranslation
   rudder_mount_overrides = __pop_subcomponent_overrides!(__overrides, "rudder_mount")
   push!(__systems, @named rudder_mount = MultibodyComponents.FixedTranslation(; r=[Float64(-2), Float64(0), 4.5], render=false, rudder_mount_overrides...))
   # Subcomponent rudder of type DyadShip.Ship6DOF.Rudder
   rudder_overrides = __pop_subcomponent_overrides!(__overrides, "rudder")
   push!(__systems, @named rudder = DyadShip.Ship6DOF.Rudder(; rudder_overrides...))
+  # Subcomponent governor of type RotationalComponents.Sources.VelocitySource
+  governor_overrides = __pop_subcomponent_overrides!(__overrides, "governor")
+  push!(__systems, @named governor = RotationalComponents.Sources.VelocitySource(; governor_overrides...))
+  # Subcomponent ground of type RotationalComponents.Components.Fixed
+  ground_overrides = __pop_subcomponent_overrides!(__overrides, "ground")
+  push!(__systems, @named ground = RotationalComponents.Components.Fixed(; ground_overrides...))
   # Subcomponent env of type DyadShip.Environment
   env_overrides = __pop_subcomponent_overrides!(__overrides, "env")
   push!(__systems, @named env = DyadShip.Environment(; WindSpeed=wind_speed, WindDirection=wind_direction, env_overrides...))
@@ -192,8 +192,8 @@ superstructure wind load acts through `ShipWind`.
   push!(__eqs, prop.Current_y ~ 0)
   push!(__eqs, rudder.Current_x ~ 0)
   push!(__eqs, rudder.Current_y ~ 0)
-  push!(__eqs, governor.w_ref ~ shaft_rpm * π / 30)
   push!(__eqs, rudder.Rudder_Order ~ rudder_order)
+  push!(__eqs, governor.w_ref ~ shaft_rpm * π / 30)
   push!(__eqs, wind.Wind_x ~ getindex(getproperty(env, :WindVector), 1))
   push!(__eqs, wind.Wind_y ~ getindex(getproperty(env, :WindVector), 2))
   push!(__eqs, sail1.Wind_x ~ getindex(getproperty(env, :WindVector), 1))
@@ -225,9 +225,9 @@ superstructure wind load acts through `ShipWind`.
   push!(__eqs, connect(prop.Propeller_speed, rudder.Propeller_speed))
   push!(__eqs, connect(prop.Propeller_flow_diameter, rudder.Propeller_flow_diameter))
   push!(__eqs, connect(prop.Wake_Fraction, rudder.Wake_Fraction))
+  push!(__eqs, connect(shaft.spline_b, prop.flange))
   push!(__eqs, connect(governor.support, ground.spline))
   push!(__eqs, connect(governor.spline, shaft.spline_a))
-  push!(__eqs, connect(shaft.spline_b, prop.flange))
   push!(__eqs, connect(ship.frame_a, wind.frame_a, sail_pos1.frame_a, sail_pos2.frame_a, sail_pos3.frame_a, sail_pos4.frame_a))
   push!(__eqs, connect(sail_pos1.frame_b, sail1.frame_a))
   push!(__eqs, connect(sail_pos2.frame_b, sail2.frame_a))

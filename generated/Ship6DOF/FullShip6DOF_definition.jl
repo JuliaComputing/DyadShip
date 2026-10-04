@@ -129,18 +129,18 @@ autopilot must counter with a rudder offset and a small steady heel.
   # Subcomponent shaft of type RotationalComponents.Components.Inertia
   shaft_overrides = __pop_subcomponent_overrides!(__overrides, "shaft")
   push!(__systems, @named shaft = RotationalComponents.Components.Inertia(; J=J_shaft, shaft_overrides...))
-  # Subcomponent governor of type RotationalComponents.Sources.VelocitySource
-  governor_overrides = __pop_subcomponent_overrides!(__overrides, "governor")
-  push!(__systems, @named governor = RotationalComponents.Sources.VelocitySource(; governor_overrides...))
-  # Subcomponent ground of type RotationalComponents.Components.Fixed
-  ground_overrides = __pop_subcomponent_overrides!(__overrides, "ground")
-  push!(__systems, @named ground = RotationalComponents.Components.Fixed(; ground_overrides...))
   # Subcomponent rudder_mount of type MultibodyComponents.FixedTranslation
   rudder_mount_overrides = __pop_subcomponent_overrides!(__overrides, "rudder_mount")
   push!(__systems, @named rudder_mount = MultibodyComponents.FixedTranslation(; r=[Float64(-2), Float64(0), 4.5], render=false, rudder_mount_overrides...))
   # Subcomponent rudder of type DyadShip.Ship6DOF.Rudder
   rudder_overrides = __pop_subcomponent_overrides!(__overrides, "rudder")
   push!(__systems, @named rudder = DyadShip.Ship6DOF.Rudder(; rudder_overrides...))
+  # Subcomponent governor of type RotationalComponents.Sources.VelocitySource
+  governor_overrides = __pop_subcomponent_overrides!(__overrides, "governor")
+  push!(__systems, @named governor = RotationalComponents.Sources.VelocitySource(; governor_overrides...))
+  # Subcomponent ground of type RotationalComponents.Components.Fixed
+  ground_overrides = __pop_subcomponent_overrides!(__overrides, "ground")
+  push!(__systems, @named ground = RotationalComponents.Components.Fixed(; ground_overrides...))
   # Subcomponent pilot of type DyadShip.Ship6DOF.WaypointAutopilot
   pilot_overrides = __pop_subcomponent_overrides!(__overrides, "pilot")
   push!(__systems, @named pilot = DyadShip.Ship6DOF.WaypointAutopilot(; pilot_overrides...))
@@ -171,8 +171,8 @@ autopilot must counter with a rudder offset and a small steady heel.
   push!(__eqs, prop.Current_y ~ 0)
   push!(__eqs, rudder.Current_x ~ 0)
   push!(__eqs, rudder.Current_y ~ 0)
-  push!(__eqs, governor.w_ref ~ shaft_rpm * π / 30)
   push!(__eqs, rudder.Rudder_Order ~ rudder_order)
+  push!(__eqs, governor.w_ref ~ shaft_rpm * π / 30)
   push!(__eqs, wind.Wind_x ~ getindex(getproperty(env, :WindVector), 1))
   push!(__eqs, wind.Wind_y ~ getindex(getproperty(env, :WindVector), 2))
   push!(__eqs, pilot.pos_x ~ ship.pos_x)
@@ -192,9 +192,9 @@ autopilot must counter with a rudder offset and a small steady heel.
   push!(__eqs, connect(prop.Propeller_speed, rudder.Propeller_speed))
   push!(__eqs, connect(prop.Propeller_flow_diameter, rudder.Propeller_flow_diameter))
   push!(__eqs, connect(prop.Wake_Fraction, rudder.Wake_Fraction))
+  push!(__eqs, connect(shaft.spline_b, prop.flange))
   push!(__eqs, connect(governor.support, ground.spline))
   push!(__eqs, connect(governor.spline, shaft.spline_a))
-  push!(__eqs, connect(shaft.spline_b, prop.flange))
   push!(__eqs, connect(ship.frame_a, wind.frame_a))
 
   # Return completely constructed System

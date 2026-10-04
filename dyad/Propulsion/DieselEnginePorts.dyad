@@ -12,7 +12,7 @@ partial component DieselEnginePorts
   KWh = RealOutput()
   "Cumulative fuel mass [kg], nondecreasing"
   Fuel = RealOutput()
-  "Cumulative fuel mass [kg] metered with a held SFOC end value, nondecreasing"
+  "Cumulative fuel mass [kg] metered with a held SFOC end value"
   Fuel_extrapolated = RealOutput()
   "Fuel mass rate [kg/s], never negative"
   Inst_Fuel = RealOutput()
