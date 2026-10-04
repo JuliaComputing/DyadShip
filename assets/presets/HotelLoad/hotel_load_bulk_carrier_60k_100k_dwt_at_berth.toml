@@ -1,0 +1,6 @@
+# Fleet-average literature value, not a ship: auxiliary engine power output of a bulk carrier, 60,000 to 99,999 dwt,
+# at berth, Fourth IMO GHG Study 2020, Table 17. See hotel_load_bulk_carrier_60k_100k_dwt_at_berth.provenance.toml.
+# Units: NominalPower W; Kr and CycleAmplitude dimensionless.
+NominalPower = 240000.0
+Kr = 1.0
+CycleAmplitude = 0.0

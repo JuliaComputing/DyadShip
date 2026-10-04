@@ -1,0 +1,49 @@
+# Provenance sidecar. NOT a parameter file: never reference it in an apply clause.
+schema = "dyadship.provenance/1"
+asset = "wageningen_b4_70.toml"
+component = "DyadShip.Ship6DOF.Propeller1Q"
+calibration_status = "literature series geometry; example scale"
+manufacturer = "none"
+model = "Wageningen B-series, B4-70, P/D = 0.8"
+description = "Blade number, expanded area ratio and pitch ratio of a systematic-series screw, with an example diameter. Not a manufactured propeller and not a design for any ship."
+reference_conditions = "open water; the regression is stated for Reynolds number 2e6 and carries no correction to full scale here"
+uncertainty = "not stated here: the accuracy of the regression against the model tests is given in the publication, which was not re-read for this file"
+
+[parameters.Z]
+unit = "1"
+origin = "chosen; a blade number inside the regression range 2 to 7"
+
+[parameters.Ae_Ao]
+unit = "1"
+meaning = "expanded blade area ratio"
+origin = "chosen; inside the regression range 0.30 to 1.05. The name B4-70 follows the series convention B<blades>-<100 x area ratio>"
+
+[parameters.P_D]
+unit = "1"
+meaning = "pitch-diameter ratio"
+origin = "chosen; inside the regression range 0.5 to 1.4"
+
+[parameters.Diameter]
+unit = "m"
+origin = "example scale chosen for this file; not from any document. Change it to the propeller of the ship studied"
+
+[envelope]
+advance_ratio = "Propeller1Q clamps the advance ratio to its J_min and J_max before evaluating the regression; the preset is for ahead running"
+geometry = "Z, Ae_Ao and P_D lie inside the range the component states for the regression"
+
+[[source]]
+title = "Oosterveld, M. W. C. and van Oossanen, P. (1975). Further computer-analyzed data of the Wageningen B-screw series. International Shipbuilding Progress 22(251), 251-262."
+role = "publication of the thrust and torque regression polynomials that Propeller1Q evaluates; named by the component. The coefficient table in this package was not re-checked against the publication for this file"
+
+[[source]]
+title = "Bernitsas, M. M., Ray, D. and Kinley, P. (1981). KT, KQ and efficiency curves for the Wageningen B-series propellers. University of Michigan, Department of Naval Architecture and Marine Engineering, Report 237."
+url = "https://deepblue.lib.umich.edu/handle/2027.42/91702"
+role = "public report that reprints the polynomials and plots the curves; listed as where to verify them. Not read for this file"
+
+[[missing_data]]
+item = "hull-dependent wake fraction, thrust deduction and relative rotative efficiency"
+status = "not set by this file; Propeller1Q estimates them from hull parameters"
+
+[[missing_data]]
+item = "manufacturer open-water test of an actual propeller"
+status = "not held; this file is not a substitute for it"

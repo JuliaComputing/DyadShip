@@ -1,0 +1,6 @@
+# Wageningen B-series geometry B5-75, pitch-diameter ratio 1.0. See wageningen_b5_75.provenance.toml.
+# Units: Z blades, Ae_Ao and P_D dimensionless, Diameter m (example scale, change freely).
+Z = 5.0
+Ae_Ao = 0.75
+P_D = 1.0
+Diameter = 7.0
