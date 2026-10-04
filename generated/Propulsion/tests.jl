@@ -29,4 +29,8 @@ include("Propeller4Q_test.jl")
 include("RudderStep_test.jl")
 include("Rudder_test.jl")
 include("SimpleDieselEngine_test.jl")
+include("SyntheticDieselEngineAInRange_test.jl")
+include("SyntheticDieselEngineA_test.jl")
+include("SyntheticDieselEngineBInRange_test.jl")
+include("SyntheticDieselEngineB_test.jl")
 end

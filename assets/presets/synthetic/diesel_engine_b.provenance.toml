@@ -1,0 +1,49 @@
+# Provenance sidecar. NOT a parameter file: never reference it in an apply clause.
+schema = "dyadship.provenance/1"
+asset = "diesel_engine_b.toml"
+component = "DyadShip.Propulsion.SimpleDieselEngine"
+calibration_status = "synthetic"
+manufacturer = "none"
+model = "none"
+description = "Three unequally spaced knots, zero idle rate. Invented to exercise a table shorter than the default."
+reference_conditions = "none: no fuel, heating value, ambient condition or ISO 3046-1 reference is attached"
+uncertainty = "not applicable: the values are not measurements"
+
+[parameters.n_sfoc]
+unit = "1"
+origin = "number of knots in this file"
+
+[parameters.SFOC_P]
+unit = "kW"
+meaning = "brake power at the engine flange"
+origin = "round values chosen for the example; not taken from any document"
+
+[parameters.SFOC_g]
+unit = "g/kWh"
+origin = "round values chosen for the example; not taken from or fitted to any document"
+
+[parameters.m_dot_idle]
+unit = "kg/s"
+origin = "zero: this variant has no idle fuel"
+
+[envelope]
+brake_power = "table covers SFOC_P[1] to SFOC_P[end]; end values are held outside and flagged by the model"
+speed_and_torque = "controller and torque-limit curve are the SimpleDieselEngine defaults, unchanged by this file"
+
+[[missing_data]]
+item = "manufacturer SFOC at declared load points with tolerance and reference conditions"
+status = "not held; this file is not a substitute for it"
+
+[[missing_data]]
+item = "manufacturer idle-running fuel consumption"
+status = "not held"
+
+[[context]]
+title = "ShipSIM SimpleDieselEngine SFOC table (the SimpleDieselEngine default)"
+url = "https://github.com/BasilioPV/ShipSIM/blob/81c7cab930a2f25ea262f78b73d721bf689886b4/ShipSIM/Components.mo#L1638"
+role = "origin of the component's default table, which cites no engine or test; not the source of this file"
+
+[[context]]
+title = "MAN L16/24 Project Guide, Marine four-stroke GenSet, IMO Tier II, section B 11 01 0"
+url = "https://man-es.com/applications/projectguides/4stroke/manualcontent/PG_M-II_L1624.pdf"
+role = "shows what a manufacturer declaration contains (SFOC by load with tolerance, ISO 3046-1 reference conditions, idle consumption); no value here was taken from or fitted to it"

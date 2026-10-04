@@ -6,7 +6,7 @@
 module Ship6DOF
 
 using ..DyadShip
-using ..DyadShip: __build_overrides, __dyad_sym_union, __pop_subcomponent_overrides!, __dyad_isa_variant, __dyad_promoted_value_fits, @__dyad_switch
+using ..DyadShip: __build_overrides, __dyad_sym_union, __pop_subcomponent_overrides!, __dyad_isa_variant, __dyad_promoted_value_fits, @__dyad_switch, __dyad_load_parameters, __dyad_apply_kwargs, __dyad_flatten, __dyad_check_apply, __dyad_apply_overrides, __dyad_apply_symbolic_overrides
 
 if isfile(joinpath((@__DIR__) |> Base.dirname |> Base.dirname, "dyad", "Ship6DOF", "module.jl"))
   include(joinpath((@__DIR__) |> Base.dirname |> Base.dirname, "dyad", "Ship6DOF", "module.jl"))

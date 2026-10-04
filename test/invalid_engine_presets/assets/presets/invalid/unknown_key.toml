@@ -1,0 +1,5 @@
+# INVALID fixture for tests only.
+n_sfoc = 3
+SFOC_P = [300.0, 750.0, 1200.0]
+SFOC_g = [222.0, 204.0, 208.0]
+sfoc_scale = 1.1

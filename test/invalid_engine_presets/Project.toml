@@ -1,0 +1,19 @@
+name = "DyadShipInvalidEnginePresets"
+uuid = "5d0f6c3a-2b7e-4f1a-9a64-8c1e2f7b3d90"
+version = "0.1.0"
+
+[deps]
+BlockComponents = "1ef5d832-be8e-447f-9f2c-8b5d17d15fd3"
+DyadInterface = "99806f68-afab-45ca-9d8c-ceff6bc61f54"
+DyadShip = "06f36289-3465-4855-a938-d9d375dd888a"
+Markdown = "d6f4376e-aef5-505a-96c1-9c027394607a"
+ModelingToolkit = "961ee093-0014-501f-94e3-6117800e7a78"
+Moshi = "2e0e35c7-a2e4-4343-998d-7ef72827ed2d"
+OrdinaryDiffEqDefault = "50262376-6c5a-4cf5-baba-aaf4f84d72d7"
+PrecompileTools = "aea7be01-6a6a-4083-8856-8a6e6704d82a"
+RotationalComponents = "824fa3ed-d7dc-4365-8bdf-ac77a1ac2011"
+RuntimeGeneratedFunctions = "7e49a35a-f44a-4d26-94aa-eba1b4ca6b47"
+TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
+
+[dyad]
+kernel = "3.4.0"

@@ -1,0 +1,48 @@
+"""
+`SimpleDieselEngine` with the synthetic parameter file `presets/synthetic/diesel_engine_a.toml`:
+a six-knot SFOC table from 200 to 1200 kW and an idle fuel rate of 0.0015 kg/s.
+
+**Synthetic.** The numbers are round values invented to exercise the preset mechanism.
+They are not measurements, not manufacturer data and not fitted to any engine; do not use
+them as a calibration. Provenance is recorded next to the file in
+`diesel_engine_a.provenance.toml`.
+
+## How presets work
+
+A preset is a parameter file plus a wrapper with no equations of its own. The wrapper
+holds the one `SimpleDieselEngine` as `core` and loads the file with an `apply` clause on
+that instance. This is the loading path that Dyad 3.4 supports for a table whose length
+differs from the default: the file sets the structural `n_sfoc` and the two arrays sized
+by it in one place, on a direct subcomponent instance. `apply` is not accepted on an
+`extends` clause or on a nested instance (`rig(engine(apply …))`), the package needs
+`TOML` among its dependencies, the file must belong
+to the package that writes the clause, and a structural parameter of a nested
+subcomponent cannot be delivered. Only `n_sfoc`, `SFOC_P`, `SFOC_g` and `m_dot_idle` are
+set by the file; the controller, the torque limit and the metering equations are those of
+`SimpleDieselEngine`, and its parameter checks apply to the loaded values.
+
+What happens to a file that should not be used depends on the defect:
+- an unknown key, a wrong type or a missing file is reported by the compiler as an
+  `urn:instantiate:apply-…` diagnostic **while the compile still exits 0**, and is
+  refused when the component is constructed. Read the compile log, not only the exit
+  status;
+- arrays whose length disagrees with `n_sfoc` are reported by neither the compiler nor
+  the constructor, because the length is structural; the problem then cannot be built
+  for a solve. Keep `n_sfoc` and both arrays consistent in the file;
+- values that load but cannot be metered (unordered or non-finite knots, non-positive
+  SFOC, negative idle rate) are refused by the engine's assertions: the run ends
+  without a successful return code.
+"""
+component SyntheticDieselEngineA
+  extends DieselEnginePorts
+  core = SimpleDieselEngine(apply "dyad://DyadShip/presets/synthetic/diesel_engine_a.toml")
+relations
+  connect(RPM_demand, core.RPM_demand)
+  connect(core.KWh, KWh)
+  connect(core.Fuel, Fuel)
+  connect(core.Fuel_extrapolated, Fuel_extrapolated)
+  connect(core.Inst_Fuel, Inst_Fuel)
+  connect(core.ShaftPower, ShaftPower)
+  connect(core.SFOC_valid, SFOC_valid)
+  connect(flange, core.flange)
+end

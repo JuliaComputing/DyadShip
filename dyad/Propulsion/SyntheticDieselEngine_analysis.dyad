@@ -1,0 +1,51 @@
+"""
+`SyntheticDieselEngineA` on the load of `DieselEngineInRange`: constant 1800 RPM demand,
+shaft starting at 1500 RPM, damper taking 799 kW at 1800 RPM. The preset changes only the
+SFOC table and the idle rate, so the speed and power histories are those of
+`DieselEngineInRange` (639–1121 kW), inside this preset's table for the whole run.
+"""
+test component SyntheticDieselEngineAInRange
+  engine = SyntheticDieselEngineA()
+  inertia = RotationalComponents.Components.Inertia(J = 50)
+  ground = RotationalComponents.Components.Damper(d = 22.5)   # acts as a load
+  fixed = RotationalComponents.Components.Fixed()
+  demand = BlockComponents.Sources.Constant(k = 1800)
+relations
+  initial inertia.phi = 0
+  initial inertia.w = 1500 * 2 * π / 60
+  connect(demand.y, engine.RPM_demand)
+  connect(engine.flange, inertia.spline_a)
+  connect(inertia.spline_b, ground.spline_a)
+  connect(ground.spline_b, fixed.spline)
+end
+
+analysis SyntheticDieselEngineATransient
+  extends TransientAnalysis(stop = 30.0)
+  model = SyntheticDieselEngineAInRange()
+end
+
+"""
+`SyntheticDieselEngineB` on the load of `DieselEngineInRange`: constant 1800 RPM demand,
+shaft starting at 1500 RPM, damper taking 799 kW at 1800 RPM. The preset changes only the
+SFOC table and the idle rate, so the speed and power histories are those of
+`DieselEngineInRange` (639–1121 kW), inside this preset's table for the whole run.
+"""
+test component SyntheticDieselEngineBInRange
+  engine = SyntheticDieselEngineB()
+  inertia = RotationalComponents.Components.Inertia(J = 50)
+  ground = RotationalComponents.Components.Damper(d = 22.5)   # acts as a load
+  fixed = RotationalComponents.Components.Fixed()
+  demand = BlockComponents.Sources.Constant(k = 1800)
+relations
+  initial inertia.phi = 0
+  initial inertia.w = 1500 * 2 * π / 60
+  connect(demand.y, engine.RPM_demand)
+  connect(engine.flange, inertia.spline_a)
+  connect(inertia.spline_b, ground.spline_a)
+  connect(ground.spline_b, fixed.spline)
+end
+
+analysis SyntheticDieselEngineBTransient
+  extends TransientAnalysis(stop = 30.0)
+  model = SyntheticDieselEngineBInRange()
+end

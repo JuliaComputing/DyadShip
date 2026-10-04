@@ -1,0 +1,331 @@
+# INVALID fixtures for tests only. Each wraps the one SimpleDieselEngine with a parameter
+# file that must be refused: when the file is loaded, when the problem is built, or when
+# the run starts.
+
+test component InvalidDecreasingKnots
+  extends DyadShip.Propulsion.DieselEnginePorts
+  core = DyadShip.Propulsion.SimpleDieselEngine(apply "dyad://DyadShipInvalidEnginePresets/presets/invalid/decreasing_knots.toml")
+relations
+  connect(RPM_demand, core.RPM_demand)
+  connect(core.KWh, KWh)
+  connect(core.Fuel, Fuel)
+  connect(core.Fuel_extrapolated, Fuel_extrapolated)
+  connect(core.Inst_Fuel, Inst_Fuel)
+  connect(core.ShaftPower, ShaftPower)
+  connect(core.SFOC_valid, SFOC_valid)
+  connect(flange, core.flange)
+end
+
+test component InvalidDuplicateKnot
+  extends DyadShip.Propulsion.DieselEnginePorts
+  core = DyadShip.Propulsion.SimpleDieselEngine(apply "dyad://DyadShipInvalidEnginePresets/presets/invalid/duplicate_knot.toml")
+relations
+  connect(RPM_demand, core.RPM_demand)
+  connect(core.KWh, KWh)
+  connect(core.Fuel, Fuel)
+  connect(core.Fuel_extrapolated, Fuel_extrapolated)
+  connect(core.Inst_Fuel, Inst_Fuel)
+  connect(core.ShaftPower, ShaftPower)
+  connect(core.SFOC_valid, SFOC_valid)
+  connect(flange, core.flange)
+end
+
+test component InvalidNanSfoc
+  extends DyadShip.Propulsion.DieselEnginePorts
+  core = DyadShip.Propulsion.SimpleDieselEngine(apply "dyad://DyadShipInvalidEnginePresets/presets/invalid/nan_sfoc.toml")
+relations
+  connect(RPM_demand, core.RPM_demand)
+  connect(core.KWh, KWh)
+  connect(core.Fuel, Fuel)
+  connect(core.Fuel_extrapolated, Fuel_extrapolated)
+  connect(core.Inst_Fuel, Inst_Fuel)
+  connect(core.ShaftPower, ShaftPower)
+  connect(core.SFOC_valid, SFOC_valid)
+  connect(flange, core.flange)
+end
+
+test component InvalidZeroSfoc
+  extends DyadShip.Propulsion.DieselEnginePorts
+  core = DyadShip.Propulsion.SimpleDieselEngine(apply "dyad://DyadShipInvalidEnginePresets/presets/invalid/zero_sfoc.toml")
+relations
+  connect(RPM_demand, core.RPM_demand)
+  connect(core.KWh, KWh)
+  connect(core.Fuel, Fuel)
+  connect(core.Fuel_extrapolated, Fuel_extrapolated)
+  connect(core.Inst_Fuel, Inst_Fuel)
+  connect(core.ShaftPower, ShaftPower)
+  connect(core.SFOC_valid, SFOC_valid)
+  connect(flange, core.flange)
+end
+
+test component InvalidInfKnot
+  extends DyadShip.Propulsion.DieselEnginePorts
+  core = DyadShip.Propulsion.SimpleDieselEngine(apply "dyad://DyadShipInvalidEnginePresets/presets/invalid/inf_knot.toml")
+relations
+  connect(RPM_demand, core.RPM_demand)
+  connect(core.KWh, KWh)
+  connect(core.Fuel, Fuel)
+  connect(core.Fuel_extrapolated, Fuel_extrapolated)
+  connect(core.Inst_Fuel, Inst_Fuel)
+  connect(core.ShaftPower, ShaftPower)
+  connect(core.SFOC_valid, SFOC_valid)
+  connect(flange, core.flange)
+end
+
+test component InvalidNegativeIdle
+  extends DyadShip.Propulsion.DieselEnginePorts
+  core = DyadShip.Propulsion.SimpleDieselEngine(apply "dyad://DyadShipInvalidEnginePresets/presets/invalid/negative_idle.toml")
+relations
+  connect(RPM_demand, core.RPM_demand)
+  connect(core.KWh, KWh)
+  connect(core.Fuel, Fuel)
+  connect(core.Fuel_extrapolated, Fuel_extrapolated)
+  connect(core.Inst_Fuel, Inst_Fuel)
+  connect(core.ShaftPower, ShaftPower)
+  connect(core.SFOC_valid, SFOC_valid)
+  connect(flange, core.flange)
+end
+
+test component InvalidLengthMismatch
+  extends DyadShip.Propulsion.DieselEnginePorts
+  core = DyadShip.Propulsion.SimpleDieselEngine(apply "dyad://DyadShipInvalidEnginePresets/presets/invalid/length_mismatch.toml")
+relations
+  connect(RPM_demand, core.RPM_demand)
+  connect(core.KWh, KWh)
+  connect(core.Fuel, Fuel)
+  connect(core.Fuel_extrapolated, Fuel_extrapolated)
+  connect(core.Inst_Fuel, Inst_Fuel)
+  connect(core.ShaftPower, ShaftPower)
+  connect(core.SFOC_valid, SFOC_valid)
+  connect(flange, core.flange)
+end
+
+test component InvalidLongerWithoutCount
+  extends DyadShip.Propulsion.DieselEnginePorts
+  core = DyadShip.Propulsion.SimpleDieselEngine(apply "dyad://DyadShipInvalidEnginePresets/presets/invalid/longer_without_count.toml")
+relations
+  connect(RPM_demand, core.RPM_demand)
+  connect(core.KWh, KWh)
+  connect(core.Fuel, Fuel)
+  connect(core.Fuel_extrapolated, Fuel_extrapolated)
+  connect(core.Inst_Fuel, Inst_Fuel)
+  connect(core.ShaftPower, ShaftPower)
+  connect(core.SFOC_valid, SFOC_valid)
+  connect(flange, core.flange)
+end
+
+test component InvalidUnknownKey
+  extends DyadShip.Propulsion.DieselEnginePorts
+  core = DyadShip.Propulsion.SimpleDieselEngine(apply "dyad://DyadShipInvalidEnginePresets/presets/invalid/unknown_key.toml")
+relations
+  connect(RPM_demand, core.RPM_demand)
+  connect(core.KWh, KWh)
+  connect(core.Fuel, Fuel)
+  connect(core.Fuel_extrapolated, Fuel_extrapolated)
+  connect(core.Inst_Fuel, Inst_Fuel)
+  connect(core.ShaftPower, ShaftPower)
+  connect(core.SFOC_valid, SFOC_valid)
+  connect(flange, core.flange)
+end
+
+test component InvalidWrongType
+  extends DyadShip.Propulsion.DieselEnginePorts
+  core = DyadShip.Propulsion.SimpleDieselEngine(apply "dyad://DyadShipInvalidEnginePresets/presets/invalid/wrong_type.toml")
+relations
+  connect(RPM_demand, core.RPM_demand)
+  connect(core.KWh, KWh)
+  connect(core.Fuel, Fuel)
+  connect(core.Fuel_extrapolated, Fuel_extrapolated)
+  connect(core.Inst_Fuel, Inst_Fuel)
+  connect(core.ShaftPower, ShaftPower)
+  connect(core.SFOC_valid, SFOC_valid)
+  connect(flange, core.flange)
+end
+
+test component InvalidSidecar
+  extends DyadShip.Propulsion.DieselEnginePorts
+  core = DyadShip.Propulsion.SimpleDieselEngine(apply "dyad://DyadShipInvalidEnginePresets/presets/invalid/sidecar.provenance.toml")
+relations
+  connect(RPM_demand, core.RPM_demand)
+  connect(core.KWh, KWh)
+  connect(core.Fuel, Fuel)
+  connect(core.Fuel_extrapolated, Fuel_extrapolated)
+  connect(core.Inst_Fuel, Inst_Fuel)
+  connect(core.ShaftPower, ShaftPower)
+  connect(core.SFOC_valid, SFOC_valid)
+  connect(flange, core.flange)
+end
+
+test component InvalidMissingFile
+  extends DyadShip.Propulsion.DieselEnginePorts
+  core = DyadShip.Propulsion.SimpleDieselEngine(apply "dyad://DyadShipInvalidEnginePresets/presets/invalid/does_not_exist.toml")
+relations
+  connect(RPM_demand, core.RPM_demand)
+  connect(core.KWh, KWh)
+  connect(core.Fuel, Fuel)
+  connect(core.Fuel_extrapolated, Fuel_extrapolated)
+  connect(core.Inst_Fuel, Inst_Fuel)
+  connect(core.ShaftPower, ShaftPower)
+  connect(core.SFOC_valid, SFOC_valid)
+  connect(flange, core.flange)
+end
+
+test component InvalidDecreasingKnotsRig
+  engine = InvalidDecreasingKnots()
+  inertia = RotationalComponents.Components.Inertia(J = 50)
+  ground = RotationalComponents.Components.Damper(d = 22.5)
+  fixed = RotationalComponents.Components.Fixed()
+  demand = BlockComponents.Sources.Constant(k = 1800)
+relations
+  initial inertia.phi = 0
+  initial inertia.w = 1500 * 2 * π / 60
+  connect(demand.y, engine.RPM_demand)
+  connect(engine.flange, inertia.spline_a)
+  connect(inertia.spline_b, ground.spline_a)
+  connect(ground.spline_b, fixed.spline)
+end
+
+analysis InvalidDecreasingKnotsTransient
+  extends TransientAnalysis(stop = 1.0)
+  model = InvalidDecreasingKnotsRig()
+end
+
+test component InvalidDuplicateKnotRig
+  engine = InvalidDuplicateKnot()
+  inertia = RotationalComponents.Components.Inertia(J = 50)
+  ground = RotationalComponents.Components.Damper(d = 22.5)
+  fixed = RotationalComponents.Components.Fixed()
+  demand = BlockComponents.Sources.Constant(k = 1800)
+relations
+  initial inertia.phi = 0
+  initial inertia.w = 1500 * 2 * π / 60
+  connect(demand.y, engine.RPM_demand)
+  connect(engine.flange, inertia.spline_a)
+  connect(inertia.spline_b, ground.spline_a)
+  connect(ground.spline_b, fixed.spline)
+end
+
+analysis InvalidDuplicateKnotTransient
+  extends TransientAnalysis(stop = 1.0)
+  model = InvalidDuplicateKnotRig()
+end
+
+test component InvalidNanSfocRig
+  engine = InvalidNanSfoc()
+  inertia = RotationalComponents.Components.Inertia(J = 50)
+  ground = RotationalComponents.Components.Damper(d = 22.5)
+  fixed = RotationalComponents.Components.Fixed()
+  demand = BlockComponents.Sources.Constant(k = 1800)
+relations
+  initial inertia.phi = 0
+  initial inertia.w = 1500 * 2 * π / 60
+  connect(demand.y, engine.RPM_demand)
+  connect(engine.flange, inertia.spline_a)
+  connect(inertia.spline_b, ground.spline_a)
+  connect(ground.spline_b, fixed.spline)
+end
+
+analysis InvalidNanSfocTransient
+  extends TransientAnalysis(stop = 1.0)
+  model = InvalidNanSfocRig()
+end
+
+test component InvalidZeroSfocRig
+  engine = InvalidZeroSfoc()
+  inertia = RotationalComponents.Components.Inertia(J = 50)
+  ground = RotationalComponents.Components.Damper(d = 22.5)
+  fixed = RotationalComponents.Components.Fixed()
+  demand = BlockComponents.Sources.Constant(k = 1800)
+relations
+  initial inertia.phi = 0
+  initial inertia.w = 1500 * 2 * π / 60
+  connect(demand.y, engine.RPM_demand)
+  connect(engine.flange, inertia.spline_a)
+  connect(inertia.spline_b, ground.spline_a)
+  connect(ground.spline_b, fixed.spline)
+end
+
+analysis InvalidZeroSfocTransient
+  extends TransientAnalysis(stop = 1.0)
+  model = InvalidZeroSfocRig()
+end
+
+test component InvalidInfKnotRig
+  engine = InvalidInfKnot()
+  inertia = RotationalComponents.Components.Inertia(J = 50)
+  ground = RotationalComponents.Components.Damper(d = 22.5)
+  fixed = RotationalComponents.Components.Fixed()
+  demand = BlockComponents.Sources.Constant(k = 1800)
+relations
+  initial inertia.phi = 0
+  initial inertia.w = 1500 * 2 * π / 60
+  connect(demand.y, engine.RPM_demand)
+  connect(engine.flange, inertia.spline_a)
+  connect(inertia.spline_b, ground.spline_a)
+  connect(ground.spline_b, fixed.spline)
+end
+
+analysis InvalidInfKnotTransient
+  extends TransientAnalysis(stop = 1.0)
+  model = InvalidInfKnotRig()
+end
+
+test component InvalidNegativeIdleRig
+  engine = InvalidNegativeIdle()
+  inertia = RotationalComponents.Components.Inertia(J = 50)
+  ground = RotationalComponents.Components.Damper(d = 22.5)
+  fixed = RotationalComponents.Components.Fixed()
+  demand = BlockComponents.Sources.Constant(k = 1800)
+relations
+  initial inertia.phi = 0
+  initial inertia.w = 1500 * 2 * π / 60
+  connect(demand.y, engine.RPM_demand)
+  connect(engine.flange, inertia.spline_a)
+  connect(inertia.spline_b, ground.spline_a)
+  connect(ground.spline_b, fixed.spline)
+end
+
+analysis InvalidNegativeIdleTransient
+  extends TransientAnalysis(stop = 1.0)
+  model = InvalidNegativeIdleRig()
+end
+
+test component InvalidLengthMismatchRig
+  engine = InvalidLengthMismatch()
+  inertia = RotationalComponents.Components.Inertia(J = 50)
+  ground = RotationalComponents.Components.Damper(d = 22.5)
+  fixed = RotationalComponents.Components.Fixed()
+  demand = BlockComponents.Sources.Constant(k = 1800)
+relations
+  initial inertia.phi = 0
+  initial inertia.w = 1500 * 2 * π / 60
+  connect(demand.y, engine.RPM_demand)
+  connect(engine.flange, inertia.spline_a)
+  connect(inertia.spline_b, ground.spline_a)
+  connect(ground.spline_b, fixed.spline)
+end
+
+analysis InvalidLengthMismatchTransient
+  extends TransientAnalysis(stop = 1.0)
+  model = InvalidLengthMismatchRig()
+end
+
+test component InvalidLongerWithoutCountRig
+  engine = InvalidLongerWithoutCount()
+  inertia = RotationalComponents.Components.Inertia(J = 50)
+  ground = RotationalComponents.Components.Damper(d = 22.5)
+  fixed = RotationalComponents.Components.Fixed()
+  demand = BlockComponents.Sources.Constant(k = 1800)
+relations
+  initial inertia.phi = 0
+  initial inertia.w = 1500 * 2 * π / 60
+  connect(demand.y, engine.RPM_demand)
+  connect(engine.flange, inertia.spline_a)
+  connect(inertia.spline_b, ground.spline_a)
+  connect(ground.spline_b, fixed.spline)
+end
+
+analysis InvalidLongerWithoutCountTransient
+  extends TransientAnalysis(stop = 1.0)
+  model = InvalidLongerWithoutCountRig()
+end
