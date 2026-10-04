@@ -1,0 +1,48 @@
+# Provenance sidecar. NOT a parameter file: never reference it in an apply clause.
+schema = "dyadship.provenance/1"
+asset = "hotel_load_bulk_carrier_60k_100k_dwt_at_sea.toml"
+component = "DyadShip.Machinery.OnOffConsumer"
+calibration_status = "fleet-average literature value; not a ship"
+manufacturer = "none"
+model = "none"
+description = "Auxiliary engine power output assigned to a bulk carrier, 60,000 to 99,999 dwt, at sea, by a fleet emission study. One aggregate consumer; no breakdown into consumers, no diversity and no time variation."
+reference_conditions = "ship class and operational mode as defined by the study; one value for every ship of the class"
+uncertainty = "not stated in the table; the study notes that its model can override these values for small ships"
+
+[parameters.NominalPower]
+unit = "W"
+meaning = "auxiliary engine power output in this operational mode"
+origin = "410 kW in the cited table, column Auxiliary Engine Power Output, Sea; multiplied by 1000"
+
+[parameters.Kr]
+unit = "1"
+origin = "model setting, not from the study: 1 so that the nominal power is the power drawn"
+
+[parameters.CycleAmplitude]
+unit = "1"
+origin = "model setting, not from the study: 0 so that the load is steady"
+
+[table_row]
+ship_type = "bulk carrier, 60,000 to 99,999 dwt"
+unit = "kW"
+at_berth = 240
+anchored = 400
+manoeuvring = 1100
+at_sea = 410
+
+[[source]]
+title = "Fourth IMO GHG Study 2020, Full report and annexes. International Maritime Organization, London, 2021."
+table = "Table 17 - Auxiliary engine and boiler power output, by ship type, size and operational mode"
+page = "68"
+url = "https://wwwcdn.imo.org/localresources/en/OurWork/Environment/Documents/Fourth%20IMO%20GHG%20Study%202020%20-%20Full%20report%20and%20annexes.pdf"
+accessed = "2026-10-04"
+sha256 = "c073907541ff986007e0c5f8509f0cf0fc310cf8d17631e67cc349a2683b40e8"
+role = "source of the power value and of the table row above; the document is not stored here"
+
+[[missing_data]]
+item = "electrical load analysis of an actual ship: consumer list, load factors and diversity by mode"
+status = "not held; this file is not a substitute for it"
+
+[[missing_data]]
+item = "boiler output of the same table row"
+status = "not represented: the consumer is electrical"

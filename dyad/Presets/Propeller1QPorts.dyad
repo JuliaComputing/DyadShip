@@ -1,0 +1,35 @@
+"""
+Connectors of `Ship6DOF.Propeller1Q`, without any equation. Parameter-preset wrappers
+extend this, hold one `Ship6DOF.Propeller1Q` as `core` and connect each port to it, so a
+preset can replace `Propeller1Q` in an assembly without rewiring.
+
+The meaning and units of every port are those documented on `Ship6DOF.Propeller1Q`.
+"""
+partial component Propeller1QPorts
+  "Shaft connector"
+  flange = Spline()
+  "Propeller position on the hull; thrust acts along the frame's +x"
+  frame_a = Frame3D()
+  "Sea current velocity, world x"
+  Current_x = RealInput()
+  "Sea current velocity, world y"
+  Current_y = RealInput()
+  "Net thrust delivered to the hull [N]"
+  Thrust = RealOutput()
+  "Diameter of the slipstream reaching the rudder [m]"
+  Propeller_flow_diameter = RealOutput()
+  "Slipstream velocity reaching the rudder [m/s]"
+  Propeller_speed = RealOutput()
+  "Wake fraction passed on to the rudder"
+  Wake_Fraction = RealOutput()
+  "Propeller speed through the water along the frame x axis [m/s]"
+  ShipSpeed = RealOutput()
+  "Shaft speed [rpm]"
+  rpm = RealOutput()
+  "Shaft power [W]"
+  ShaftPower = RealOutput()
+  "Effective thrust power [W]"
+  ThrustPower = RealOutput()
+  "Overall propulsive efficiency"
+  Nu_propulsive = RealOutput()
+end

@@ -1,0 +1,27 @@
+"""
+`Machinery.OnOffConsumer` with the parameter file `presets/HotelLoad/hotel_load_container_ship_8k_12k_teu_at_sea.toml`: the
+auxiliary engine power output of a container ship, 8,000 to 11,999 TEU, at sea, as one aggregate consumer of
+1800 kW.
+
+**A fleet-average literature value, not a ship.** The number is the auxiliary engine
+power output that the Fourth IMO GHG Study 2020 assigns to this ship type and size class
+in this operational mode (Table 17, page 68). It is an input of that study's fleet
+emission model, one value for every ship of the class. It is not a measurement, not an
+electrical load analysis and not a breakdown into consumers. The other three modes of
+the same table row are listed in `hotel_load_container_ship_8k_12k_teu_at_sea.provenance.toml`.
+
+The file sets `NominalPower` to that value in watts, `Kr` to 1 so that the nominal power
+is the power drawn, and `CycleAmplitude` to 0 so that the load is steady. The start-up
+ramp and the switching lag are those of `OnOffConsumer`. Drive `WorkSignal` with 1 while
+the ship is in this mode and 0 otherwise.
+
+A thin wrapper with no equations of its own. Change the value by editing a copy of the
+file or by using `OnOffConsumer` directly.
+"""
+component ContainerShipHotelLoadAtSea
+  extends OnOffConsumerPorts
+  core = DyadShip.Machinery.OnOffConsumer(apply "dyad://DyadShip/presets/HotelLoad/hotel_load_container_ship_8k_12k_teu_at_sea.toml")
+relations
+  connect(WorkSignal, core.WorkSignal)
+  connect(core.y, y)
+end

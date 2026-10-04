@@ -1,0 +1,36 @@
+"""
+`Ship6DOF.Propeller1Q` with the parameter file `presets/Propeller/wageningen_b4_70.toml`: a Wageningen
+B-series screw with 4 blades, expanded blade area ratio 0.7, pitch-diameter ratio 0.8
+and a diameter of 6.0 m; a wider-bladed four-blade screw at a lower pitch ratio.
+
+The file sets only `Z`, `Ae_Ao`, `P_D` and `Diameter`. The open-water thrust and torque
+coefficients are not in the file: they are computed by `Ship6DOF.Propeller1Q` from the
+B-series regression polynomials (Oosterveld & van Oossanen, 1975) at these three
+ratios, inside that regression's stated range (2 to 7 blades, area ratio 0.30 to 1.05,
+pitch ratio 0.5 to 1.4). The diameter is an example scale, not a value from the
+publication. Hull-dependent parameters (wake fraction, thrust deduction, relative
+rotative efficiency) keep the defaults of `Propeller1Q`. Provenance is recorded next to
+the file in `wageningen_b4_70.provenance.toml`.
+
+A thin wrapper with no equations of its own: it holds the one `Propeller1Q` as `core`,
+loads the file with an `apply` clause on that instance and connects every port. Change a
+value by editing a copy of the file or by using `Propeller1Q` directly.
+"""
+component WageningenB4_70Propeller
+  extends Propeller1QPorts
+  core = DyadShip.Ship6DOF.Propeller1Q(apply "dyad://DyadShip/presets/Propeller/wageningen_b4_70.toml")
+relations
+  connect(flange, core.flange)
+  connect(frame_a, core.frame_a)
+  connect(Current_x, core.Current_x)
+  connect(Current_y, core.Current_y)
+  connect(core.Thrust, Thrust)
+  connect(core.Propeller_flow_diameter, Propeller_flow_diameter)
+  connect(core.Propeller_speed, Propeller_speed)
+  connect(core.Wake_Fraction, Wake_Fraction)
+  connect(core.ShipSpeed, ShipSpeed)
+  connect(core.rpm, rpm)
+  connect(core.ShaftPower, ShaftPower)
+  connect(core.ThrustPower, ThrustPower)
+  connect(core.Nu_propulsive, Nu_propulsive)
+end

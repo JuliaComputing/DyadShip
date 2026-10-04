@@ -1,0 +1,19 @@
+"""
+The four hotel-load presets switched on together, each drawing its steady power.
+A check rig for `scripts/validate_component_presets.jl`, not a ship's load balance:
+the four values belong to two different ship classes and two different modes.
+"""
+test component HotelLoadPresetRig
+  on = BlockComponents.Sources.Constant(k = 1)
+  bulk_at_sea = BulkCarrierHotelLoadAtSea()
+  bulk_at_berth = BulkCarrierHotelLoadAtBerth()
+  container_at_sea = ContainerShipHotelLoadAtSea()
+  container_at_berth = ContainerShipHotelLoadAtBerth()
+relations
+  connect(on.y, bulk_at_sea.WorkSignal, bulk_at_berth.WorkSignal, container_at_sea.WorkSignal, container_at_berth.WorkSignal)
+end
+
+analysis HotelLoadPresetTransient
+  extends TransientAnalysis(stop = 120.0, abstol = 1e-9, reltol = 1e-9)
+  model = HotelLoadPresetRig()
+end

@@ -1,0 +1,6 @@
+# Fleet-average literature value, not a ship: auxiliary engine power output of a container ship, 8,000 to 11,999 TEU,
+# at sea, Fourth IMO GHG Study 2020, Table 17. See hotel_load_container_ship_8k_12k_teu_at_sea.provenance.toml.
+# Units: NominalPower W; Kr and CycleAmplitude dimensionless.
+NominalPower = 1800000.0
+Kr = 1.0
+CycleAmplitude = 0.0

@@ -1,0 +1,10 @@
+"""
+Connectors of `Machinery.OnOffConsumer`, without any equation. Parameter-preset wrappers
+extend this, hold one `OnOffConsumer` as `core` and connect both ports to it.
+"""
+partial component OnOffConsumerPorts
+  "On/off command: 1 = on, 0 = off"
+  WorkSignal = RealInput()
+  "Electrical power drawn [W]"
+  y = RealOutput()
+end
