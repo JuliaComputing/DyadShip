@@ -8,8 +8,8 @@ using DyadInterface
 using DyadInterface: ODEAlg, DEVerbosity, OptimizationLevel, SpecializationLevel
 using ModelingToolkit: SymbolicT, toggle_namespacing
 using DyadInterface: AbstractTransientAnalysisSpec, TransientAnalysisSpec
-@kwdef mutable struct SimpleDieselEngineTransientSpec <: AbstractTransientAnalysisSpec
-  name::Symbol = :SimpleDieselEngineTransient
+@kwdef mutable struct SimpleDieselEngineReversingTransientSpec <: AbstractTransientAnalysisSpec
+  name::Symbol = :SimpleDieselEngineReversingTransient
   var"alg"::ODEAlg.Type = ODEAlg.Auto()
   var"start"::Float64 = 0
   var"stop"::Float64 = 30.0
@@ -17,7 +17,7 @@ using DyadInterface: AbstractTransientAnalysisSpec, TransientAnalysisSpec
   var"reltol"::Float64 = 0.000001
   var"saveat"::Float64 = 0
   var"dtmax"::Float64 = 0
-  var"tstops"::Array{Float64, 1} = []
+  var"tstops"::Array{Float64, 1} = [10.0, 20.0]
   var"automatic_discontinuity_detection"::Bool = false
   var"optimize"::OptimizationLevel.Type = OptimizationLevel.Aggressive()
   var"progress"::Bool = true
@@ -25,14 +25,20 @@ using DyadInterface: AbstractTransientAnalysisSpec, TransientAnalysisSpec
   var"specialization"::SpecializationLevel.Type = SpecializationLevel.Despecialize()
   var"verbose"::DEVerbosity.Type = DEVerbosity.Standard()
   var"log_file"::String = ""
-  # Diesel engine driving an external inertia. RPM demand steps from 1500 to 1800 at t=2s;
-  # the PI controller should bring the shaft to ~1800 RPM in a few seconds. Energy and fuel
-  # integrators should accumulate accordingly. The damper load takes 355 kW at 1800 RPM,
-  # below the 605 kW lower knot of the SFOC table, so `SFOC_valid` is 0 at the steady state.
-  var"model"::Union{Nothing, System} = DyadShip.Propulsion.DieselEngineRamp(; name=:DieselEngineRamp)
+  # Shaft speed imposed on the engine by a velocity source: 1500 RPM at t=0, through zero
+  # at t=10 s, -500 RPM at t=15 s and back to 1500 RPM at t=30 s, with a constant 1500 RPM
+  # demand. While the shaft is dragged backwards the PI saturates at the low-speed torque
+  # limit, so the engine resists with positive torque and `ShaftPower` is negative; the fuel
+  # rate must stay at zero (no idle fuel here) and the cumulative fuel must not decrease.
+  # 
+  # The analysis declares the two zero-power crossings as `tstops = [10, 20]`, so the solver
+  # ends a step at each and the dense fuel counter is nondecreasing. Without them one step
+  # spans the crossing and the interpolated counter (dense output or `saveat`) falls back by
+  # 1.5e-5 kg.
+  var"model"::Union{Nothing, System} = DyadShip.Propulsion.DieselEngineReversing(; name=:DieselEngineReversing)
 end
 
-function DyadInterface.run_analysis(spec::SimpleDieselEngineTransientSpec)
+function DyadInterface.run_analysis(spec::SimpleDieselEngineReversingTransientSpec)
   overrides = Dict{SymbolicT, SymbolicT}()
   no_namespace_model = toggle_namespacing(spec.model, false)
   
@@ -42,5 +48,5 @@ function DyadInterface.run_analysis(spec::SimpleDieselEngineTransientSpec)
   run_analysis(base_spec)
 end
 
-SimpleDieselEngineTransient(;kwargs...) = run_analysis(SimpleDieselEngineTransientSpec(;kwargs...))
-export SimpleDieselEngineTransient, SimpleDieselEngineTransientSpec
+SimpleDieselEngineReversingTransient(;kwargs...) = run_analysis(SimpleDieselEngineReversingTransientSpec(;kwargs...))
+export SimpleDieselEngineReversingTransient, SimpleDieselEngineReversingTransientSpec

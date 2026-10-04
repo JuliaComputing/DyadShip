@@ -9,7 +9,10 @@ if isfile(joinpath((@__DIR__) |> Base.dirname |> Base.dirname, "dyad", "Propulsi
 end
 
 
+include("DieselEngineIdle_experiment.jl")
+include("DieselEngineInRange_experiment.jl")
 include("DieselEngineRamp_experiment.jl")
+include("DieselEngineReversing_experiment.jl")
 include("FlettnerRotorBeamWind_experiment.jl")
 include("FlettnerRotorOnline_experiment.jl")
 include("FlettnerRotor_experiment.jl")

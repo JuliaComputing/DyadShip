@@ -5,19 +5,24 @@
 
 
 @doc Markdown.doc"""
-   DieselEngineRamp(; name)
+   DieselEngineInRange(; name)
 
-Diesel engine driving an external inertia. RPM demand steps from 1500 to 1800 at t=2s;
-the PI controller should bring the shaft to ~1800 RPM in a few seconds. Energy and fuel
-integrators should accumulate accordingly. The damper load takes 355 kW at 1800 RPM,
-below the 605 kW lower knot of the SFOC table, so `SFOC_valid` is 0 at the steady state.
+Engine held inside its SFOC table for a whole run. Constant 1800 RPM demand on a shaft
+that starts at 1500 RPM; the damper takes 799 kW at 1800 RPM. The torque limit is reached
+at once, so the brake power starts at 864 kW and stays between 639 and 1121 kW, inside
+the 605–1210 kW table: `SFOC_valid` is 1 throughout and `Fuel_extrapolated` stays at
+exactly zero. The rate has no kink and the coverage flag no jump in this run, so no
+`tstops` are needed; sample the counters at the accepted steps.
+
+The load is synthetic and the SFOC table is the default upstream reference table, not an
+OEM calibration; `m_dot_idle` is zero.
 """
-@component function DieselEngineRamp(; name = nothing, kwargs...)
+@component function DieselEngineInRange(; name = nothing, kwargs...)
   isnothing(name) && throw(ArgumentError("""
     The `name` keyword must be provided. Please consider using the `@named` macro,
     like so:
   
-    @named model = DieselEngineRamp()
+    @named model = DieselEngineInRange()
   """))
 
   __overrides = __build_overrides(kwargs)
@@ -64,13 +69,13 @@ below the 605 kW lower knot of the SFOC table, so `SFOC_valid` is 0 at the stead
   push!(__systems, @named inertia = RotationalComponents.Components.Inertia(; J=Float64(50), inertia_overrides...))
   # Subcomponent ground of type RotationalComponents.Components.Damper
   ground_overrides = __pop_subcomponent_overrides!(__overrides, "ground")
-  push!(__systems, @named ground = RotationalComponents.Components.Damper(; d=Float64(10), ground_overrides...))
+  push!(__systems, @named ground = RotationalComponents.Components.Damper(; d=22.5, ground_overrides...))
   # Subcomponent fixed of type RotationalComponents.Components.Fixed
   fixed_overrides = __pop_subcomponent_overrides!(__overrides, "fixed")
   push!(__systems, @named fixed = RotationalComponents.Components.Fixed(; fixed_overrides...))
-  # Subcomponent step of type BlockComponents.Sources.Step
-  step_overrides = __pop_subcomponent_overrides!(__overrides, "step")
-  push!(__systems, @named step = BlockComponents.Sources.Step(; height=Float64(300), start_time=Float64(2.0), offset=Float64(1500), step_overrides...))
+  # Subcomponent demand of type BlockComponents.Sources.Constant
+  demand_overrides = __pop_subcomponent_overrides!(__overrides, "demand")
+  push!(__systems, @named demand = BlockComponents.Sources.Constant(; k=Float64(1800), demand_overrides...))
 
   ### Check there are no unmatched overrides
   isempty(__overrides) || throw(ArgumentError("overrides: [$(join(keys(__overrides), ", "))] don't match names found in model. These names may exist in the model but could have been conditionally excluded."))
@@ -85,7 +90,7 @@ below the 605 kW lower knot of the SFOC table, so `SFOC_valid` is 0 at the stead
   __assertions = []
 
   ### Equations
-  push!(__eqs, connect(step.y, engine.RPM_demand))
+  push!(__eqs, connect(demand.y, engine.RPM_demand))
   push!(__eqs, connect(engine.flange, inertia.spline_a))
   push!(__eqs, connect(inertia.spline_b, ground.spline_a))
   push!(__eqs, connect(ground.spline_b, fixed.spline))
@@ -93,4 +98,4 @@ below the 605 kW lower knot of the SFOC table, so `SFOC_valid` is 0 at the stead
   # Return completely constructed System
   return System(__eqs, t, __vars, __params; systems=__systems, initial_conditions=__initial_conditions, guesses=__guesses, name, initialization_eqs=__initialization_eqs, bindings=__bindings, assertions=__assertions)
 end
-export DieselEngineRamp
+export DieselEngineInRange

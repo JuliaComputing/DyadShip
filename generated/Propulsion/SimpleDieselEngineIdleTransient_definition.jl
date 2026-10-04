@@ -8,11 +8,11 @@ using DyadInterface
 using DyadInterface: ODEAlg, DEVerbosity, OptimizationLevel, SpecializationLevel
 using ModelingToolkit: SymbolicT, toggle_namespacing
 using DyadInterface: AbstractTransientAnalysisSpec, TransientAnalysisSpec
-@kwdef mutable struct SimpleDieselEngineTransientSpec <: AbstractTransientAnalysisSpec
-  name::Symbol = :SimpleDieselEngineTransient
+@kwdef mutable struct SimpleDieselEngineIdleTransientSpec <: AbstractTransientAnalysisSpec
+  name::Symbol = :SimpleDieselEngineIdleTransient
   var"alg"::ODEAlg.Type = ODEAlg.Auto()
   var"start"::Float64 = 0
-  var"stop"::Float64 = 30.0
+  var"stop"::Float64 = 100.0
   var"abstol"::Float64 = 0.000001
   var"reltol"::Float64 = 0.000001
   var"saveat"::Float64 = 0
@@ -25,14 +25,13 @@ using DyadInterface: AbstractTransientAnalysisSpec, TransientAnalysisSpec
   var"specialization"::SpecializationLevel.Type = SpecializationLevel.Despecialize()
   var"verbose"::DEVerbosity.Type = DEVerbosity.Standard()
   var"log_file"::String = ""
-  # Diesel engine driving an external inertia. RPM demand steps from 1500 to 1800 at t=2s;
-  # the PI controller should bring the shaft to ~1800 RPM in a few seconds. Energy and fuel
-  # integrators should accumulate accordingly. The damper load takes 355 kW at 1800 RPM,
-  # below the 605 kW lower knot of the SFOC table, so `SFOC_valid` is 0 at the steady state.
-  var"model"::Union{Nothing, System} = DyadShip.Propulsion.DieselEngineRamp(; name=:DieselEngineRamp)
+  # Engine with zero RPM demand on a shaft at rest, with an explicit no-load fuel rate. The
+  # value 0.002 kg/s is a synthetic test number, not a calibration or a manufacturer figure. Nothing moves, the shaft
+  # work stays zero, and the fuel counter grows linearly at exactly `m_dot_idle`.
+  var"model"::Union{Nothing, System} = DyadShip.Propulsion.DieselEngineIdle(; name=:DieselEngineIdle)
 end
 
-function DyadInterface.run_analysis(spec::SimpleDieselEngineTransientSpec)
+function DyadInterface.run_analysis(spec::SimpleDieselEngineIdleTransientSpec)
   overrides = Dict{SymbolicT, SymbolicT}()
   no_namespace_model = toggle_namespacing(spec.model, false)
   
@@ -42,5 +41,5 @@ function DyadInterface.run_analysis(spec::SimpleDieselEngineTransientSpec)
   run_analysis(base_spec)
 end
 
-SimpleDieselEngineTransient(;kwargs...) = run_analysis(SimpleDieselEngineTransientSpec(;kwargs...))
-export SimpleDieselEngineTransient, SimpleDieselEngineTransientSpec
+SimpleDieselEngineIdleTransient(;kwargs...) = run_analysis(SimpleDieselEngineIdleTransientSpec(;kwargs...))
+export SimpleDieselEngineIdleTransient, SimpleDieselEngineIdleTransientSpec

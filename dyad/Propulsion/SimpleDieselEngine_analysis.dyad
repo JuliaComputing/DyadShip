@@ -1,7 +1,8 @@
 """
 Diesel engine driving an external inertia. RPM demand steps from 1500 to 1800 at t=2s;
 the PI controller should bring the shaft to ~1800 RPM in a few seconds. Energy and fuel
-integrators should accumulate accordingly.
+integrators should accumulate accordingly. The damper load takes 355 kW at 1800 RPM,
+below the 605 kW lower knot of the SFOC table, so `SFOC_valid` is 0 at the steady state.
 """
 test component DieselEngineRamp
   engine = SimpleDieselEngine()
@@ -21,4 +22,89 @@ end
 analysis SimpleDieselEngineTransient
   extends TransientAnalysis(stop = 30.0)
   model = DieselEngineRamp()
+end
+
+"""
+Shaft speed imposed on the engine by a velocity source: 1500 RPM at t=0, through zero
+at t=10 s, -500 RPM at t=15 s and back to 1500 RPM at t=30 s, with a constant 1500 RPM
+demand. While the shaft is dragged backwards the PI saturates at the low-speed torque
+limit, so the engine resists with positive torque and `ShaftPower` is negative; the fuel
+rate must stay at zero (no idle fuel here) and the cumulative fuel must not decrease.
+
+The analysis declares the two zero-power crossings as `tstops = [10, 20]`, so the solver
+ends a step at each and the dense fuel counter is nondecreasing. Without them one step
+spans the crossing and the interpolated counter (dense output or `saveat`) falls back by
+1.5e-5 kg.
+"""
+test component DieselEngineReversing
+  engine = SimpleDieselEngine()
+  drive = RotationalComponents.Sources.VelocitySource(ref_type = RotationalComponents.Sources.ReferenceType.Exact())
+  fixed = RotationalComponents.Components.Fixed()
+  demand = BlockComponents.Sources.Constant(k = 1500)
+relations
+  connect(demand.y, engine.RPM_demand)
+  connect(engine.flange, drive.spline)
+  connect(drive.support, fixed.spline)
+  drive.w_ref = (2 * π / 60) * (500 + 1000 * cos(2 * π * time / 30))
+end
+
+analysis SimpleDieselEngineReversingTransient
+  extends TransientAnalysis(stop = 30.0, tstops = [10.0, 20.0])
+  model = DieselEngineReversing()
+end
+
+"""
+Engine with zero RPM demand on a shaft at rest, with an explicit no-load fuel rate. The
+value 0.002 kg/s is a synthetic test number, not a calibration or a manufacturer figure. Nothing moves, the shaft
+work stays zero, and the fuel counter grows linearly at exactly `m_dot_idle`.
+"""
+test component DieselEngineIdle
+  engine = SimpleDieselEngine(m_dot_idle = 0.002)
+  inertia = RotationalComponents.Components.Inertia(J = 50)
+  ground = RotationalComponents.Components.Damper(d = 10)
+  fixed = RotationalComponents.Components.Fixed()
+  demand = BlockComponents.Sources.Constant(k = 0)
+relations
+  initial inertia.phi = 0
+  initial inertia.w = 0
+  connect(demand.y, engine.RPM_demand)
+  connect(engine.flange, inertia.spline_a)
+  connect(inertia.spline_b, ground.spline_a)
+  connect(ground.spline_b, fixed.spline)
+end
+
+analysis SimpleDieselEngineIdleTransient
+  extends TransientAnalysis(stop = 100.0)
+  model = DieselEngineIdle()
+end
+
+"""
+Engine held inside its SFOC table for a whole run. Constant 1800 RPM demand on a shaft
+that starts at 1500 RPM; the damper takes 799 kW at 1800 RPM. The torque limit is reached
+at once, so the brake power starts at 864 kW and stays between 639 and 1121 kW, inside
+the 605–1210 kW table: `SFOC_valid` is 1 throughout and `Fuel_extrapolated` stays at
+exactly zero. The rate has no kink and the coverage flag no jump in this run, so no
+`tstops` are needed; sample the counters at the accepted steps.
+
+The load is synthetic and the SFOC table is the default upstream reference table, not an
+OEM calibration; `m_dot_idle` is zero.
+"""
+test component DieselEngineInRange
+  engine = SimpleDieselEngine()
+  inertia = RotationalComponents.Components.Inertia(J = 50)
+  ground = RotationalComponents.Components.Damper(d = 22.5)   # acts as a load
+  fixed = RotationalComponents.Components.Fixed()
+  demand = BlockComponents.Sources.Constant(k = 1800)
+relations
+  initial inertia.phi = 0
+  initial inertia.w = 1500 * 2 * π / 60
+  connect(demand.y, engine.RPM_demand)
+  connect(engine.flange, inertia.spline_a)
+  connect(inertia.spline_b, ground.spline_a)
+  connect(ground.spline_b, fixed.spline)
+end
+
+analysis SimpleDieselEngineInRangeTransient
+  extends TransientAnalysis(stop = 30.0)
+  model = DieselEngineInRange()
 end

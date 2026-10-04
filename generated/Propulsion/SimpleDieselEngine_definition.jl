@@ -5,7 +5,7 @@
 
 
 @doc Markdown.doc"""
-   SimpleDieselEngine(; name, J_engine, RPM_min, RPM_max, k_PI, Ti_PI, tau_max_abs)
+   SimpleDieselEngine(; name, n_sfoc, J_engine, RPM_min, RPM_max, k_PI, Ti_PI, tau_max_abs, SFOC_P, SFOC_g, m_dot_idle)
 
 Simple ship diesel engine: speed-controlled torque source with torque-vs-RPM limit and SFOC.
 
@@ -23,38 +23,158 @@ The original Modelica model wires together:
   fuel consumption outputs.
 
 This Dyad port preserves the structure but replaces the table-lookup blocks with
-piecewise-linear interpolation expressed as parameterized arrays. The key flow:
+closed-form piecewise-linear interpolation. The key flow:
 
-  RPM_demand → slew/limit → PI → variable limiter (0..MaxTorque(RPM)) → torque on shaft
+  RPM_demand → limit → PI → variable limiter (0..MaxTorque(RPM)) → torque on shaft
 
 External inertia and external connections to a load are the responsibility of the caller.
 The component itself ends in a `Spline` connector that the caller must drive (typically by
 attaching an `Inertia` and a load such as a propeller).
 
-Simplifications:
-- No slew-rate limiter on the RPM demand — the BlockComponents library doesn't (yet) ship a
-  rate limiter component; if the simulation needs it the caller can add their own.
-- The piecewise-linear MaxTorque(RPM) and SFOC(kW) tables are encoded as parameter arrays
-  with explicit "RPM[i] → tau[i]" pairs and use Julia's `LinearInterpolation` from
-  `DataInterpolations` indirectly via `BlockComponents.Tables.Interpolation`. To keep this
-  port compile-clean *without* needing any external CSV dataset, this version uses a closed
-  form: max torque is approximated as a piecewise-linear sweep using nested `ifelse`.
-- `Inst_Fuel`, `Fuel`, `KWh` outputs use the same SFOC mapping but as a closed-form
-  piecewise-linear approximation.
+## Operating modes and the sign of fuel
 
-Defaults match the upstream `MaxTorqueTable = [600,1500; 800,2000; 900,2750; 1100,5300;
-1200,5500; 2100,5500; 2300,500]` and `SFOCtable = [605,185; 907.5,179; 1028.5,178; 1210,182]`.
+The torque limiter only ever commands a non-negative engine torque, so the signed shaft
+power `shaft_power = w · tau_cmd` (producer convention: positive when the engine delivers
+work to the shaft) takes the sign of the shaft speed. Fuel is metered on the **brake
+power** `brake_power = max(shaft_power, 0)`:
+
+| Shaft state | `shaft_power` | load-dependent fuel |
+|---|---|---|
+| firing: `w > 0`, `tau_cmd > 0` | `> 0` | `SFOC(brake_power) · brake_power` |
+| no load: `tau_cmd = 0`, or shaft at rest | `0` | `0` |
+| driven backwards: `w < 0` against the engine torque | `< 0` | `0` |
+
+A shaft dragged backwards by its load (astern way on a windmilling propeller, a crash stop
+before the engine is reversed) is a motored engine absorbing work; it is reported as
+negative `ShaftPower`, never as a fuel credit and never as `|P|`. Upstream ShipSIM
+integrates the signed sensed power and so produces negative fuel in that state; this port
+does not. Reverse running of a reversible engine is not modelled.
+
+## SFOC table coverage and idle fuel
+
+The SFOC table `SFOC_P` [kW brake power at the engine flange] → `SFOC_g` [g/kWh] holds
+its end values outside the tabulated range (upstream `Extrapolation.HoldLastPoint`). The
+covered range is `SFOC_P[1]..SFOC_P[end]`, 605–1210 kW with the defaults. The output
+`SFOC_valid` is a **table-coverage flag** and nothing more: it is `0` while a nonzero
+brake power is metered with a held end value and `1` otherwise. It says nothing about
+whether the table is a calibration of a real engine (the default table is not, see "Data
+provenance"), and it is `1` while only idle fuel is metered, whatever the origin of
+`m_dot_idle`. The ShipSIM table starts at 605 kW, so low-load operation (including the
+`DieselEngineRamp` analysis at 355 kW) is extrapolated and flagged.
+
+`SFOC_valid` is instantaneous, so two samples with the flag at `1` can enclose an
+excursion outside the table. The counter `Fuel_extrapolated` closes that gap: it
+integrates the load-dependent fuel rate only while `SFOC_valid` is `0`, so a `Fuel`
+difference over an interval lies entirely inside the table coverage exactly when
+`Fuel_extrapolated` did not change over the same interval, and otherwise its increase is
+the mass that was metered with a held end value.
+
+`m_dot_idle` [kg/s] is the no-load fuel rate added to the load-dependent fuel at all
+times. It defaults to `0`, which reproduces the upstream model exactly: upstream has no
+idle or pilot fuel, and this port invents no value for it. The component has no
+start/stop state, so a nonzero `m_dot_idle` means "engine running for the whole
+simulation"; a stopped engine must be represented by the caller. The idle share of a
+`Fuel` difference over an interval of length `Δt` is `m_dot_idle · Δt`; its quality is
+that of the number the caller supplied.
+
+## Meter semantics
+
+| Output | Unit | Kind | Meaning |
+|---|---|---|---|
+| `Inst_Fuel` | kg/s | rate | Fuel mass rate ≥ 0: load-dependent fuel at the brake power plus `m_dot_idle`; one engine, one fuel |
+| `Fuel` | kg | counter | `∫ Inst_Fuel dt` from `0` at the simulation start; nondecreasing; difference it over an interval, do not integrate it again |
+| `Fuel_extrapolated` | kg | counter | The part of `Fuel` that was metered with a held SFOC end value (idle fuel excluded), from `0` at the simulation start; nondecreasing; an interval is inside the table coverage iff this counter did not change over it |
+| `ShaftPower` | W | power | Signed mechanical power delivered to the shaft (producer convention) |
+| `KWh` | kWh | net work | `∫ ShaftPower dt / 3.6e6`, signed as upstream: it decreases while the shaft is driven, so it is not a monotone counter |
+| `SFOC_valid` | 0/1 | table coverage | `1` while the brake power lies inside the SFOC table range or no load-dependent fuel is metered; `0` while a held end value is in use. Instantaneous; not a calibration statement |
+
+## Sampling the counters
+
+The fuel rate has kinks (zero brake power) and the coverage flag has jumps (table ends).
+The counters are nondecreasing at every accepted solver step in any case, but values
+*between* accepted steps come from the solver's interpolant, and inside a step that
+straddles a kink that interpolant overshoots. `saveat` does not avoid this: it stores
+interpolated values and does not make the solver step to the requested times. In
+`DieselEngineReversing` without step alignment (tolerances 1e-6) one accepted step spans
+the zero-power crossing, and both the dense output and a `saveat = 0.02` grid show a
+counter that falls back by 1.5e-5 kg on 0.41 kg. That size follows the step length, not
+the solver tolerance.
+
+Make the solver end a step at each crossing by passing the crossing times as `tstops`
+when they are known, as `DieselEngineReversing` does (10 s and 20 s): its dense fuel
+counter is then nondecreasing with no tolerance. Where the crossing times are not known
+in advance, export the counters at the accepted steps (`sol.t` of a run without
+`saveat`). `Fuel_extrapolated` changes slope abruptly at the table ends, whose crossing
+times are generally unknown, so read interval quality at accepted steps (its dense
+output falls back by up to 2.7e-5 kg in `DieselEngineReversing`).
+
+Do not rely on `automatic_discontinuity_detection` for this. It turns `ifelse`
+conditions into events, and an event whose condition starts exactly on its threshold is
+never detected; an engine starting at zero torque starts at exactly zero power, and a
+fuel rate gated by such a condition would stay at zero for the whole run. The fuel rate,
+the coverage flag and both counters are therefore written with plain functions
+(`positive_part`, `table_hold`, `table_covers`) that are evaluated pointwise whatever
+the analysis options. The torque-limit curve of the controller is still an `ifelse`
+chain.
+
+## Parameter checks
+
+`assert`s reject a table or idle rate that cannot be metered: `SFOC_P` must be finite,
+nonnegative and strictly increasing, `SFOC_g` finite and positive, `m_dot_idle` finite
+and nonnegative. A violated assertion makes the right-hand side `NaN`, so the analysis
+ends with a failing return code instead of a fuel figure. No fuel-specific lower bound
+on `SFOC_g` is imposed. `SFOC_P` and `SFOC_g` must both have `n_sfoc` entries; pass
+`n_sfoc` together with tables of another length (a length that disagrees with `n_sfoc`
+is rejected when the problem is built). The same checks are available before a run as
+`table_knots_valid(SFOC_P)`, `table_values_valid(SFOC_g)` and `rate_valid(m_dot_idle)`.
+
+## Data provenance
+
+The default max-torque and SFOC tables are the values in the upstream ShipSIM model
+([`MaxTorqueTable`](https://github.com/BasilioPV/ShipSIM/blob/81c7cab930a2f25ea262f78b73d721bf689886b4/ShipSIM/Components.mo#L1610),
+[`SFOCtable`](https://github.com/BasilioPV/ShipSIM/blob/81c7cab930a2f25ea262f78b73d721bf689886b4/ShipSIM/Components.mo#L1638)).
+Upstream cites no engine, manufacturer or test for them, so they are **reference values
+of unknown origin, not an OEM calibration**: no engine type, fuel, lower heating value,
+ISO 3046-1 reference condition or tolerance is attached to them, and the table covers
+50–100 % of 1210 kW only. `m_dot_idle` has no upstream value; the 0.002 kg/s in
+`DieselEngineIdle` is a synthetic test number.
+
+For what a manufacturer declaration contains, and what a calibrated table would have to
+carry, see for example:
+- [MAN L16/24 Project Guide, Marine four-stroke GenSet, IMO Tier II](https://man-es.com/applications/projectguides/4stroke/manualcontent/PG_M-II_L1624.pdf),
+  section B 11 01 0 "Fuel oil consumption for emissions standard" (1689498-2.3): SFOC at
+  25/50/75/85/100 % load with a +5 % tolerance, ISO 3046-1:2002 reference conditions, and
+  a separate idle-running consumption table in kg/h.
+- [Baudouin 12M26.3 propulsion engine specification sheet, rev. D](https://baudouin.com/wp-content/uploads/2024/03/10707_12M26.3_Spec-Sheet_revD.pdf):
+  a high-speed propulsion engine of similar size (883–1214 kW at 1800–2300 rpm) declaring
+  200–215 g/kWh at rated power, ISO 3046/1, 42 700 kJ/kg, +5 %.
+
+Neither document is the source of the defaults, and no value here was taken from or
+fitted to them. To model a specific engine, pass its declared load points as
+`SFOC_P` / `SFOC_g` and its idle consumption as `m_dot_idle`.
+
+Simplifications relative to upstream:
+- No slew-rate limiter on the RPM demand; add `BlockComponents.Nonlinear.SlewRateLimiter`
+  in front of `RPM_demand` if the demand steps need shaping.
+- The PI has no derivative part (upstream `Td = 0.01` on a `LimPID` with `k = 300`).
+- The max-torque curve is inlined as nested `ifelse` with the upstream knots
+  `[600,1500; 800,2000; 900,2750; 1100,5300; 1200,5500; 2100,5500; 2300,500]`.
+- The SFOC table defaults to the upstream `[605,185; 907.5,179; 1028.5,178; 1210,182]`.
 
 ## Parameters:
 
 | Name         | Description                         | Units  |   Default value |
 | ------------ | ----------------------------------- | ------ | --------------- |
+| `n_sfoc`         | Number of SFOC table knots                         | --  |   4 |
 | `J_engine`         | Recommended engine inertia [kg·m²] — use this when sizing the external `Inertia` block.                         | --  |   15 |
 | `RPM_min`         | Min RPM (clamps demand)                         | --  |   0 |
 | `RPM_max`         | Max RPM (clamps demand)                         | --  |   2200 |
 | `k_PI`         | PI gain                         | --  |   300 |
 | `Ti_PI`         | PI integral time constant                         | --  |   0.5 |
 | `tau_max_abs`         | PI output upper limit (matches original yMax = 6000)                         | --  |   6000 |
+| `SFOC_P`         | SFOC table brake power knots [kW] at the engine flange, finite, nonnegative and strictly increasing; the table covers the first to the last knot                         | --  |   [605, 907.5...28.5, 1210] |
+| `SFOC_g`         | SFOC table values [g/kWh] at `SFOC_P`, finite and positive; held constant outside the tabulated range                         | --  |   [185, 179, 178, 182] |
+| `m_dot_idle`         | No-load (idle) fuel mass rate [kg/s] added at all times, finite and nonnegative; 0 reproduces upstream, which has no idle fuel                         | kg/s  |   0 |
 
 ## Connectors
 
@@ -62,6 +182,9 @@ Defaults match the upstream `MaxTorqueTable = [600,1500; 800,2000; 900,2750; 110
  * `KWh` - This connector represents a real signal as an output from a component ([`RealOutput`](@ref))
  * `Fuel` - This connector represents a real signal as an output from a component ([`RealOutput`](@ref))
  * `Inst_Fuel` - This connector represents a real signal as an output from a component ([`RealOutput`](@ref))
+ * `ShaftPower` - This connector represents a real signal as an output from a component ([`RealOutput`](@ref))
+ * `Fuel_extrapolated` - This connector represents a real signal as an output from a component ([`RealOutput`](@ref))
+ * `SFOC_valid` - This connector represents a real signal as an output from a component ([`RealOutput`](@ref))
  * `flange` - This connector represents a rotational spline with angle and torque as the potential and flow variables, respectively. ([`Spline`](@ref))
 
 ## Variables
@@ -76,12 +199,15 @@ Defaults match the upstream `MaxTorqueTable = [600,1500; 800,2000; 900,2750; 110
 | `max_tau`         |                          | --  |
 | `tau_cmd`         |                          | --  |
 | `shaft_power`         |                          | W  |
-| `shaft_power_kW`         |                          | --  |
+| `brake_power`         |                          | W  |
+| `brake_power_kW`         |                          | --  |
 | `joules`         |                          | --  |
 | `sfoc`         |                          | --  |
-| `fuel_g`         |                          | --  |
+| `load_fuel`         |                          | --  |
+| `fuel_mass`         |                          | kg  |
+| `fuel_extrapolated_mass`         |                          | kg  |
 """
-@component function SimpleDieselEngine(; name = nothing, J_engine=Float64(15), RPM_min=Float64(0), RPM_max=Float64(2200), k_PI=Float64(300), Ti_PI=0.5, tau_max_abs=Float64(6000), kwargs...)
+@component function SimpleDieselEngine(; name = nothing, n_sfoc=4, J_engine=Float64(15), RPM_min=Float64(0), RPM_max=Float64(2200), k_PI=Float64(300), Ti_PI=0.5, tau_max_abs=Float64(6000), SFOC_P=[Float64(605), 907.5, 1028.5, Float64(1210)], SFOC_g=[Float64(185), Float64(179), Float64(178), Float64(182)], m_dot_idle=Float64(0), kwargs...)
   isnothing(name) && throw(ArgumentError("""
     The `name` keyword must be provided. Please consider using the `@named` macro,
     like so:
@@ -130,6 +256,15 @@ Defaults match the upstream `MaxTorqueTable = [600,1500; 800,2000; 900,2750; 110
   __local__tau_max_abs = tau_max_abs
   append!(__params, @parameters (tau_max_abs::Real), [description = "PI output upper limit (matches original yMax = 6000)"])
   __initial_conditions[tau_max_abs] = __local__tau_max_abs
+  __local__SFOC_P = SFOC_P
+  append!(__params, @parameters (SFOC_P[1:n_sfoc]::Real), [description = "SFOC table brake power knots [kW] at the engine flange, finite, nonnegative and strictly increasing; the table covers the first to the last knot"])
+  __initial_conditions[SFOC_P] = __local__SFOC_P
+  __local__SFOC_g = SFOC_g
+  append!(__params, @parameters (SFOC_g[1:n_sfoc]::Real), [description = "SFOC table values [g/kWh] at `SFOC_P`, finite and positive; held constant outside the tabulated range"])
+  __initial_conditions[SFOC_g] = __local__SFOC_g
+  __local__m_dot_idle = m_dot_idle
+  append!(__params, @parameters (m_dot_idle::Real), [description = "No-load (idle) fuel mass rate [kg/s] added at all times, finite and nonnegative; 0 reproduces upstream, which has no idle fuel"])
+  __initial_conditions[m_dot_idle] = __local__m_dot_idle
 
   ### Final Parameters (assignments)
 
@@ -138,6 +273,9 @@ Defaults match the upstream `MaxTorqueTable = [600,1500; 800,2000; 900,2750; 110
   append!(__vars, @variables (KWh(t)::Real), [output = true])
   append!(__vars, @variables (Fuel(t)::Real), [output = true])
   append!(__vars, @variables (Inst_Fuel(t)::Real), [output = true])
+  append!(__vars, @variables (ShaftPower(t)::Real), [output = true])
+  append!(__vars, @variables (Fuel_extrapolated(t)::Real), [output = true])
+  append!(__vars, @variables (SFOC_valid(t)::Real), [output = true])
 
   ### Variables (declarations)
   append!(__vars, @variables (rpm(t)::Real))
@@ -148,10 +286,13 @@ Defaults match the upstream `MaxTorqueTable = [600,1500; 800,2000; 900,2750; 110
   append!(__vars, @variables (max_tau(t)::Real))
   append!(__vars, @variables (tau_cmd(t)::Real))
   append!(__vars, @variables (shaft_power(t)::Real))
-  append!(__vars, @variables (shaft_power_kW(t)::Real))
+  append!(__vars, @variables (brake_power(t)::Real))
+  append!(__vars, @variables (brake_power_kW(t)::Real))
   append!(__vars, @variables (joules(t)::Real))
   append!(__vars, @variables (sfoc(t)::Real))
-  append!(__vars, @variables (fuel_g(t)::Real))
+  append!(__vars, @variables (load_fuel(t)::Real))
+  append!(__vars, @variables (fuel_mass(t)::Real))
+  append!(__vars, @variables (fuel_extrapolated_mass(t)::Real))
 
   ### Variables (assignments)
   __ovr_rpm = pop!(__overrides, "rpm", nothing); isnothing(__ovr_rpm) || push!(__eqs, rpm ~ __ovr_rpm)
@@ -178,18 +319,27 @@ Defaults match the upstream `MaxTorqueTable = [600,1500; 800,2000; 900,2750; 110
   __ovr_shaft_power = pop!(__overrides, "shaft_power", nothing); isnothing(__ovr_shaft_power) || push!(__eqs, shaft_power ~ __ovr_shaft_power)
   __ovr_shaft_power__initial = pop!(__overrides, "shaft_power__initial", nothing); isnothing(__ovr_shaft_power__initial) || (__initial_conditions[shaft_power] = __ovr_shaft_power__initial)
   __ovr_shaft_power__guess = pop!(__overrides, "shaft_power__guess", nothing)
-  __ovr_shaft_power_kW = pop!(__overrides, "shaft_power_kW", nothing); isnothing(__ovr_shaft_power_kW) || push!(__eqs, shaft_power_kW ~ __ovr_shaft_power_kW)
-  __ovr_shaft_power_kW__initial = pop!(__overrides, "shaft_power_kW__initial", nothing); isnothing(__ovr_shaft_power_kW__initial) || (__initial_conditions[shaft_power_kW] = __ovr_shaft_power_kW__initial)
-  __ovr_shaft_power_kW__guess = pop!(__overrides, "shaft_power_kW__guess", nothing)
+  __ovr_brake_power = pop!(__overrides, "brake_power", nothing); isnothing(__ovr_brake_power) || push!(__eqs, brake_power ~ __ovr_brake_power)
+  __ovr_brake_power__initial = pop!(__overrides, "brake_power__initial", nothing); isnothing(__ovr_brake_power__initial) || (__initial_conditions[brake_power] = __ovr_brake_power__initial)
+  __ovr_brake_power__guess = pop!(__overrides, "brake_power__guess", nothing)
+  __ovr_brake_power_kW = pop!(__overrides, "brake_power_kW", nothing); isnothing(__ovr_brake_power_kW) || push!(__eqs, brake_power_kW ~ __ovr_brake_power_kW)
+  __ovr_brake_power_kW__initial = pop!(__overrides, "brake_power_kW__initial", nothing); isnothing(__ovr_brake_power_kW__initial) || (__initial_conditions[brake_power_kW] = __ovr_brake_power_kW__initial)
+  __ovr_brake_power_kW__guess = pop!(__overrides, "brake_power_kW__guess", nothing)
   __ovr_joules = pop!(__overrides, "joules", nothing); isnothing(__ovr_joules) || push!(__eqs, joules ~ __ovr_joules)
   __ovr_joules__initial = pop!(__overrides, "joules__initial", nothing); isnothing(__ovr_joules__initial) || (__initial_conditions[joules] = __ovr_joules__initial)
   __ovr_joules__guess = pop!(__overrides, "joules__guess", nothing)
   __ovr_sfoc = pop!(__overrides, "sfoc", nothing); isnothing(__ovr_sfoc) || push!(__eqs, sfoc ~ __ovr_sfoc)
   __ovr_sfoc__initial = pop!(__overrides, "sfoc__initial", nothing); isnothing(__ovr_sfoc__initial) || (__initial_conditions[sfoc] = __ovr_sfoc__initial)
   __ovr_sfoc__guess = pop!(__overrides, "sfoc__guess", nothing)
-  __ovr_fuel_g = pop!(__overrides, "fuel_g", nothing); isnothing(__ovr_fuel_g) || push!(__eqs, fuel_g ~ __ovr_fuel_g)
-  __ovr_fuel_g__initial = pop!(__overrides, "fuel_g__initial", nothing); isnothing(__ovr_fuel_g__initial) || (__initial_conditions[fuel_g] = __ovr_fuel_g__initial)
-  __ovr_fuel_g__guess = pop!(__overrides, "fuel_g__guess", nothing)
+  __ovr_load_fuel = pop!(__overrides, "load_fuel", nothing); isnothing(__ovr_load_fuel) || push!(__eqs, load_fuel ~ __ovr_load_fuel)
+  __ovr_load_fuel__initial = pop!(__overrides, "load_fuel__initial", nothing); isnothing(__ovr_load_fuel__initial) || (__initial_conditions[load_fuel] = __ovr_load_fuel__initial)
+  __ovr_load_fuel__guess = pop!(__overrides, "load_fuel__guess", nothing)
+  __ovr_fuel_mass = pop!(__overrides, "fuel_mass", nothing); isnothing(__ovr_fuel_mass) || push!(__eqs, fuel_mass ~ __ovr_fuel_mass)
+  __ovr_fuel_mass__initial = pop!(__overrides, "fuel_mass__initial", nothing); isnothing(__ovr_fuel_mass__initial) || (__initial_conditions[fuel_mass] = __ovr_fuel_mass__initial)
+  __ovr_fuel_mass__guess = pop!(__overrides, "fuel_mass__guess", nothing)
+  __ovr_fuel_extrapolated_mass = pop!(__overrides, "fuel_extrapolated_mass", nothing); isnothing(__ovr_fuel_extrapolated_mass) || push!(__eqs, fuel_extrapolated_mass ~ __ovr_fuel_extrapolated_mass)
+  __ovr_fuel_extrapolated_mass__initial = pop!(__overrides, "fuel_extrapolated_mass__initial", nothing); isnothing(__ovr_fuel_extrapolated_mass__initial) || (__initial_conditions[fuel_extrapolated_mass] = __ovr_fuel_extrapolated_mass__initial)
+  __ovr_fuel_extrapolated_mass__guess = pop!(__overrides, "fuel_extrapolated_mass__guess", nothing)
 
   ### Constants
   __constants = Any[]
@@ -209,19 +359,26 @@ Defaults match the upstream `MaxTorqueTable = [600,1500; 800,2000; 900,2750; 110
   isnothing(__ovr_max_tau__guess) || (__guesses[max_tau] = __ovr_max_tau__guess)
   isnothing(__ovr_tau_cmd__guess) || (__guesses[tau_cmd] = __ovr_tau_cmd__guess)
   isnothing(__ovr_shaft_power__guess) || (__guesses[shaft_power] = __ovr_shaft_power__guess)
-  isnothing(__ovr_shaft_power_kW__guess) || (__guesses[shaft_power_kW] = __ovr_shaft_power_kW__guess)
+  isnothing(__ovr_brake_power__guess) || (__guesses[brake_power] = __ovr_brake_power__guess)
+  isnothing(__ovr_brake_power_kW__guess) || (__guesses[brake_power_kW] = __ovr_brake_power_kW__guess)
   isnothing(__ovr_joules__guess) || (__guesses[joules] = __ovr_joules__guess)
   isnothing(__ovr_sfoc__guess) || (__guesses[sfoc] = __ovr_sfoc__guess)
-  isnothing(__ovr_fuel_g__guess) || (__guesses[fuel_g] = __ovr_fuel_g__guess)
+  isnothing(__ovr_load_fuel__guess) || (__guesses[load_fuel] = __ovr_load_fuel__guess)
+  isnothing(__ovr_fuel_mass__guess) || (__guesses[fuel_mass] = __ovr_fuel_mass__guess)
+  isnothing(__ovr_fuel_extrapolated_mass__guess) || (__guesses[fuel_extrapolated_mass] = __ovr_fuel_extrapolated_mass__guess)
 
   ### Initialization Equations
   push!(__initialization_eqs, err_int ~ 0)
   push!(__initialization_eqs, joules ~ 0)
-  push!(__initialization_eqs, fuel_g ~ 0)
+  push!(__initialization_eqs, fuel_mass ~ 0)
+  push!(__initialization_eqs, fuel_extrapolated_mass ~ 0)
   push!(__initialization_eqs, flange.phi ~ 0)
 
   ### Assertions
   __assertions = []
+  push!(__assertions, (table_knots_valid(SFOC_P) > 0.5 => "SimpleDieselEngine: SFOC_P must be finite, nonnegative and strictly increasing (at SimpleDieselEngine.dyad:211:3)"))
+  push!(__assertions, (table_values_valid(SFOC_g) > 0.5 => "SimpleDieselEngine: SFOC_g must be finite and positive (at SimpleDieselEngine.dyad:212:3)"))
+  push!(__assertions, (rate_valid(m_dot_idle) > 0.5 => "SimpleDieselEngine: m_dot_idle must be finite and nonnegative (at SimpleDieselEngine.dyad:213:3)"))
 
   ### Equations
   push!(__eqs, shaft_w ~ ModelingToolkit.D_nounits(flange.phi))
@@ -233,13 +390,19 @@ Defaults match the upstream `MaxTorqueTable = [600,1500; 800,2000; 900,2750; 110
   push!(__eqs, tau_cmd ~ clamp(tau_pi, 0, max_tau))
   push!(__eqs, flange.tau ~ -tau_cmd)
   push!(__eqs, shaft_power ~ shaft_w * tau_cmd)
-  push!(__eqs, shaft_power_kW ~ shaft_power / 1000)
+  push!(__eqs, ShaftPower ~ shaft_power)
   push!(__eqs, ModelingToolkit.D_nounits(joules) ~ shaft_power)
   push!(__eqs, KWh ~ joules / 3600000.0)
-  push!(__eqs, sfoc ~ ifelse(shaft_power_kW <= 605, 185, ifelse(shaft_power_kW <= 907.5, 185 + (179 - 185) * (shaft_power_kW - 605) / (907.5 - 605), ifelse(shaft_power_kW <= 1028.5, 179 + (178 - 179) * (shaft_power_kW - 907.5) / (1028.5 - 907.5), ifelse(shaft_power_kW <= 1210, 178 + (182 - 178) * (shaft_power_kW - 1028.5) / (1210 - 1028.5), 182)))))
-  push!(__eqs, Inst_Fuel ~ sfoc * shaft_power_kW / 3600 / 1000)
-  push!(__eqs, ModelingToolkit.D_nounits(fuel_g) ~ sfoc * shaft_power_kW / 3600)
-  push!(__eqs, Fuel ~ fuel_g / 1000)
+  push!(__eqs, brake_power ~ positive_part(shaft_power))
+  push!(__eqs, brake_power_kW ~ brake_power / 1000)
+  push!(__eqs, sfoc ~ table_hold(SFOC_P, SFOC_g, brake_power_kW))
+  push!(__eqs, SFOC_valid ~ table_covers(SFOC_P, brake_power_kW))
+  push!(__eqs, load_fuel ~ sfoc * brake_power_kW / 3600000.0)
+  push!(__eqs, Inst_Fuel ~ load_fuel + m_dot_idle)
+  push!(__eqs, ModelingToolkit.D_nounits(fuel_mass) ~ Inst_Fuel)
+  push!(__eqs, Fuel ~ fuel_mass)
+  push!(__eqs, ModelingToolkit.D_nounits(fuel_extrapolated_mass) ~ (1 - SFOC_valid) * load_fuel)
+  push!(__eqs, Fuel_extrapolated ~ fuel_extrapolated_mass)
 
   # Return completely constructed System
   return System(__eqs, t, __vars, __params; systems=__systems, initial_conditions=__initial_conditions, guesses=__guesses, name, initialization_eqs=__initialization_eqs, bindings=__bindings, assertions=__assertions)

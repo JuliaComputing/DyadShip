@@ -8,8 +8,8 @@ using DyadInterface
 using DyadInterface: ODEAlg, DEVerbosity, OptimizationLevel, SpecializationLevel
 using ModelingToolkit: SymbolicT, toggle_namespacing
 using DyadInterface: AbstractTransientAnalysisSpec, TransientAnalysisSpec
-@kwdef mutable struct SimpleDieselEngineTransientSpec <: AbstractTransientAnalysisSpec
-  name::Symbol = :SimpleDieselEngineTransient
+@kwdef mutable struct SimpleDieselEngineInRangeTransientSpec <: AbstractTransientAnalysisSpec
+  name::Symbol = :SimpleDieselEngineInRangeTransient
   var"alg"::ODEAlg.Type = ODEAlg.Auto()
   var"start"::Float64 = 0
   var"stop"::Float64 = 30.0
@@ -25,14 +25,19 @@ using DyadInterface: AbstractTransientAnalysisSpec, TransientAnalysisSpec
   var"specialization"::SpecializationLevel.Type = SpecializationLevel.Despecialize()
   var"verbose"::DEVerbosity.Type = DEVerbosity.Standard()
   var"log_file"::String = ""
-  # Diesel engine driving an external inertia. RPM demand steps from 1500 to 1800 at t=2s;
-  # the PI controller should bring the shaft to ~1800 RPM in a few seconds. Energy and fuel
-  # integrators should accumulate accordingly. The damper load takes 355 kW at 1800 RPM,
-  # below the 605 kW lower knot of the SFOC table, so `SFOC_valid` is 0 at the steady state.
-  var"model"::Union{Nothing, System} = DyadShip.Propulsion.DieselEngineRamp(; name=:DieselEngineRamp)
+  # Engine held inside its SFOC table for a whole run. Constant 1800 RPM demand on a shaft
+  # that starts at 1500 RPM; the damper takes 799 kW at 1800 RPM. The torque limit is reached
+  # at once, so the brake power starts at 864 kW and stays between 639 and 1121 kW, inside
+  # the 605–1210 kW table: `SFOC_valid` is 1 throughout and `Fuel_extrapolated` stays at
+  # exactly zero. The rate has no kink and the coverage flag no jump in this run, so no
+  # `tstops` are needed; sample the counters at the accepted steps.
+  # 
+  # The load is synthetic and the SFOC table is the default upstream reference table, not an
+  # OEM calibration; `m_dot_idle` is zero.
+  var"model"::Union{Nothing, System} = DyadShip.Propulsion.DieselEngineInRange(; name=:DieselEngineInRange)
 end
 
-function DyadInterface.run_analysis(spec::SimpleDieselEngineTransientSpec)
+function DyadInterface.run_analysis(spec::SimpleDieselEngineInRangeTransientSpec)
   overrides = Dict{SymbolicT, SymbolicT}()
   no_namespace_model = toggle_namespacing(spec.model, false)
   
@@ -42,5 +47,5 @@ function DyadInterface.run_analysis(spec::SimpleDieselEngineTransientSpec)
   run_analysis(base_spec)
 end
 
-SimpleDieselEngineTransient(;kwargs...) = run_analysis(SimpleDieselEngineTransientSpec(;kwargs...))
-export SimpleDieselEngineTransient, SimpleDieselEngineTransientSpec
+SimpleDieselEngineInRangeTransient(;kwargs...) = run_analysis(SimpleDieselEngineInRangeTransientSpec(;kwargs...))
+export SimpleDieselEngineInRangeTransient, SimpleDieselEngineInRangeTransientSpec
