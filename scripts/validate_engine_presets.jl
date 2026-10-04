@@ -14,7 +14,7 @@ using DyadInterface: symbolic_container
 using ModelingToolkit: assertions, equations, get_systems, nameof
 
 const PR = DyadShip.Propulsion
-const PRESETS = joinpath(pkgdir(DyadShip), "assets", "presets", "synthetic")
+const PRESETS = joinpath(pkgdir(DyadShip), "assets", "presets", "Synthetic")
 
 successful_retcode(sol) = string(sol.retcode) == "Success"
 trapz(ts, ys) = sum((ts[i + 1] - ts[i]) * (ys[i] + ys[i + 1]) / 2 for i in 1:length(ts) - 1)
@@ -43,6 +43,19 @@ be = symbolic_container(base).engine
     @test base.sol.ps[be.SFOC_P] == [605, 907.5, 1028.5, 1210]
     @test base.sol.ps[be.SFOC_g] == [185, 179, 178, 182]
     @test base.sol.ps[be.m_dot_idle] == 0
+end
+
+@testset "table length is checked at construction" begin
+    # A table whose length disagrees with n_sfoc is refused before a problem is built.
+    @test_throws ArgumentError PR.SimpleDieselEngine(; name = :engine, SFOC_P = [300.0, 605.0, 907.5, 1028.5, 1210.0])
+    @test_throws ArgumentError PR.SimpleDieselEngine(; name = :engine, SFOC_g = [185.0, 179.0, 178.0])
+    @test_throws ArgumentError PR.SimpleDieselEngine(; name = :engine, n_sfoc = 5)
+    @test_throws ArgumentError PR.checked_table_length(4, [1.0, 2.0, 3.0], [1.0, 2.0, 3.0, 4.0])
+    @test PR.checked_table_length(3, [1.0, 2.0, 3.0], [1.0, 2.0, 3.0]) == 3
+    # Consistent lengths are accepted, default and non-default.
+    @test PR.SimpleDieselEngine(; name = :engine) !== nothing
+    @test PR.SimpleDieselEngine(; name = :engine, n_sfoc = 5, SFOC_P = [300.0, 605.0, 907.5, 1028.5, 1210.0],
+        SFOC_g = [185.0, 185.0, 179.0, 178.0, 182.0]) !== nothing
 end
 
 fuel = Dict{String, Float64}()

@@ -1,10 +1,10 @@
 # INVALID fixtures for tests only. Each wraps the one SimpleDieselEngine with a parameter
-# file that must be refused: when the file is loaded, when the problem is built, or when
+# file that must be refused: when the file is loaded, when the engine is constructed, or when
 # the run starts.
 
 test component InvalidDecreasingKnots
   extends DyadShip.Propulsion.DieselEnginePorts
-  core = DyadShip.Propulsion.SimpleDieselEngine(apply "dyad://DyadShipInvalidEnginePresets/presets/invalid/decreasing_knots.toml")
+  core = DyadShip.Propulsion.SimpleDieselEngine(apply "dyad://DyadShipInvalidEnginePresets/presets/Invalid/decreasing_knots.toml")
 relations
   connect(RPM_demand, core.RPM_demand)
   connect(core.KWh, KWh)
@@ -18,7 +18,7 @@ end
 
 test component InvalidDuplicateKnot
   extends DyadShip.Propulsion.DieselEnginePorts
-  core = DyadShip.Propulsion.SimpleDieselEngine(apply "dyad://DyadShipInvalidEnginePresets/presets/invalid/duplicate_knot.toml")
+  core = DyadShip.Propulsion.SimpleDieselEngine(apply "dyad://DyadShipInvalidEnginePresets/presets/Invalid/duplicate_knot.toml")
 relations
   connect(RPM_demand, core.RPM_demand)
   connect(core.KWh, KWh)
@@ -32,7 +32,7 @@ end
 
 test component InvalidNanSfoc
   extends DyadShip.Propulsion.DieselEnginePorts
-  core = DyadShip.Propulsion.SimpleDieselEngine(apply "dyad://DyadShipInvalidEnginePresets/presets/invalid/nan_sfoc.toml")
+  core = DyadShip.Propulsion.SimpleDieselEngine(apply "dyad://DyadShipInvalidEnginePresets/presets/Invalid/nan_sfoc.toml")
 relations
   connect(RPM_demand, core.RPM_demand)
   connect(core.KWh, KWh)
@@ -46,7 +46,7 @@ end
 
 test component InvalidZeroSfoc
   extends DyadShip.Propulsion.DieselEnginePorts
-  core = DyadShip.Propulsion.SimpleDieselEngine(apply "dyad://DyadShipInvalidEnginePresets/presets/invalid/zero_sfoc.toml")
+  core = DyadShip.Propulsion.SimpleDieselEngine(apply "dyad://DyadShipInvalidEnginePresets/presets/Invalid/zero_sfoc.toml")
 relations
   connect(RPM_demand, core.RPM_demand)
   connect(core.KWh, KWh)
@@ -60,7 +60,7 @@ end
 
 test component InvalidInfKnot
   extends DyadShip.Propulsion.DieselEnginePorts
-  core = DyadShip.Propulsion.SimpleDieselEngine(apply "dyad://DyadShipInvalidEnginePresets/presets/invalid/inf_knot.toml")
+  core = DyadShip.Propulsion.SimpleDieselEngine(apply "dyad://DyadShipInvalidEnginePresets/presets/Invalid/inf_knot.toml")
 relations
   connect(RPM_demand, core.RPM_demand)
   connect(core.KWh, KWh)
@@ -74,7 +74,7 @@ end
 
 test component InvalidNegativeIdle
   extends DyadShip.Propulsion.DieselEnginePorts
-  core = DyadShip.Propulsion.SimpleDieselEngine(apply "dyad://DyadShipInvalidEnginePresets/presets/invalid/negative_idle.toml")
+  core = DyadShip.Propulsion.SimpleDieselEngine(apply "dyad://DyadShipInvalidEnginePresets/presets/Invalid/negative_idle.toml")
 relations
   connect(RPM_demand, core.RPM_demand)
   connect(core.KWh, KWh)
@@ -88,7 +88,7 @@ end
 
 test component InvalidLengthMismatch
   extends DyadShip.Propulsion.DieselEnginePorts
-  core = DyadShip.Propulsion.SimpleDieselEngine(apply "dyad://DyadShipInvalidEnginePresets/presets/invalid/length_mismatch.toml")
+  core = DyadShip.Propulsion.SimpleDieselEngine(apply "dyad://DyadShipInvalidEnginePresets/presets/Invalid/length_mismatch.toml")
 relations
   connect(RPM_demand, core.RPM_demand)
   connect(core.KWh, KWh)
@@ -102,7 +102,7 @@ end
 
 test component InvalidLongerWithoutCount
   extends DyadShip.Propulsion.DieselEnginePorts
-  core = DyadShip.Propulsion.SimpleDieselEngine(apply "dyad://DyadShipInvalidEnginePresets/presets/invalid/longer_without_count.toml")
+  core = DyadShip.Propulsion.SimpleDieselEngine(apply "dyad://DyadShipInvalidEnginePresets/presets/Invalid/longer_without_count.toml")
 relations
   connect(RPM_demand, core.RPM_demand)
   connect(core.KWh, KWh)
@@ -116,7 +116,7 @@ end
 
 test component InvalidUnknownKey
   extends DyadShip.Propulsion.DieselEnginePorts
-  core = DyadShip.Propulsion.SimpleDieselEngine(apply "dyad://DyadShipInvalidEnginePresets/presets/invalid/unknown_key.toml")
+  core = DyadShip.Propulsion.SimpleDieselEngine(apply "dyad://DyadShipInvalidEnginePresets/presets/Invalid/unknown_key.toml")
 relations
   connect(RPM_demand, core.RPM_demand)
   connect(core.KWh, KWh)
@@ -130,7 +130,7 @@ end
 
 test component InvalidWrongType
   extends DyadShip.Propulsion.DieselEnginePorts
-  core = DyadShip.Propulsion.SimpleDieselEngine(apply "dyad://DyadShipInvalidEnginePresets/presets/invalid/wrong_type.toml")
+  core = DyadShip.Propulsion.SimpleDieselEngine(apply "dyad://DyadShipInvalidEnginePresets/presets/Invalid/wrong_type.toml")
 relations
   connect(RPM_demand, core.RPM_demand)
   connect(core.KWh, KWh)
@@ -144,7 +144,7 @@ end
 
 test component InvalidSidecar
   extends DyadShip.Propulsion.DieselEnginePorts
-  core = DyadShip.Propulsion.SimpleDieselEngine(apply "dyad://DyadShipInvalidEnginePresets/presets/invalid/sidecar.provenance.toml")
+  core = DyadShip.Propulsion.SimpleDieselEngine(apply "dyad://DyadShipInvalidEnginePresets/presets/Invalid/sidecar.provenance.toml")
 relations
   connect(RPM_demand, core.RPM_demand)
   connect(core.KWh, KWh)
@@ -158,7 +158,7 @@ end
 
 test component InvalidMissingFile
   extends DyadShip.Propulsion.DieselEnginePorts
-  core = DyadShip.Propulsion.SimpleDieselEngine(apply "dyad://DyadShipInvalidEnginePresets/presets/invalid/does_not_exist.toml")
+  core = DyadShip.Propulsion.SimpleDieselEngine(apply "dyad://DyadShipInvalidEnginePresets/presets/Invalid/does_not_exist.toml")
 relations
   connect(RPM_demand, core.RPM_demand)
   connect(core.KWh, KWh)

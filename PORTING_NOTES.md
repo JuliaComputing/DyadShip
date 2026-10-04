@@ -59,7 +59,7 @@ the pitch Euler angle is positive bow down. Wind and current directions are
 | (new) | `Ship6DOF.RollTunedMassDamper` | inertial (tuned-mass) roll damper on a prismatic slide |
 | (new) | `Ship6DOF.AntiHeelingCircuit`, `CentrifugalPump`, `TankLiquidMass` | pump/valve ballast transfer on `IncompressibleFlowComponents` |
 | `Machines.SimpleDieselEngine` | `Propulsion.SimpleDieselEngine` | max-torque table inlined as `ifelse`, SFOC table as parameter arrays with held end values (`table_hold`); fuel metered on `max(shaft_power, 0)` so a back-driven shaft gives no negative fuel (upstream does); `SFOC_valid` table-coverage flag and `Fuel_extrapolated` interval counter, `m_dot_idle` (default 0), `ShaftPower` output; table and idle-rate `assert`s; upstream tables carry no engine source and are not an OEM calibration |
-| (new) | `Propulsion.SyntheticDieselEngineA`, `SyntheticDieselEngineB`, `DieselEnginePorts` | synthetic parameter presets of `SimpleDieselEngine` loaded from `assets/presets/synthetic/*.toml` by `apply`; no equations of their own |
+| (new) | `Propulsion.SyntheticDieselEngineA`, `SyntheticDieselEngineB`, `DieselEnginePorts` | synthetic parameter presets of `SimpleDieselEngine` loaded from `assets/presets/Synthetic/*.toml` by `apply`; no equations of their own |
 | `Machines.Crane`, `SubComponents.Cable` | `Ship6DOF.Crane`, `Ship6DOF.Cable` | 3D; cable break as a clocked latch (`CableBreakLatch`) |
 | `Electrical.OnOffConsumer` | `Machinery.OnOffConsumer` | work signal behind a switching lag; the schedule comes from `RandomStart` |
 | `Electrical.Internal.RandomStart` | `Machinery.RandomStart` | the `when time >= pre(NextStep)` scheduler as clocked logic on `DiscreteComponents.UniformNoise`, seeded and reproducible |

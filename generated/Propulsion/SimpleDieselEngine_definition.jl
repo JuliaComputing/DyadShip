@@ -124,8 +124,8 @@ nonnegative and strictly increasing, `SFOC_g` finite and positive, `m_dot_idle` 
 and nonnegative. A violated assertion makes the right-hand side `NaN`, so the analysis
 ends with a failing return code instead of a fuel figure. No fuel-specific lower bound
 on `SFOC_g` is imposed. `SFOC_P` and `SFOC_g` must both have `n_sfoc` entries; pass
-`n_sfoc` together with tables of another length (a length that disagrees with `n_sfoc`
-is rejected when the problem is built). The same checks are available before a run as
+`n_sfoc` together with tables of another length; a length that disagrees with `n_sfoc`
+is refused with an `ArgumentError` when the component is constructed. The same checks are available before a run as
 `table_knots_valid(SFOC_P)`, `table_values_valid(SFOC_g)` and `rate_valid(m_dot_idle)`.
 
 ## Data provenance
@@ -166,6 +166,7 @@ Simplifications relative to upstream:
 | Name         | Description                         | Units  |   Default value |
 | ------------ | ----------------------------------- | ------ | --------------- |
 | `n_sfoc`         | Number of SFOC table knots                         | --  |   4 |
+| `sfoc_table_length`         | Length check done when the component is constructed: `SFOC_P` and `SFOC_g` must both have `n_sfoc` entries                         | --  |   checked_tab..._P, SFOC_g) |
 | `J_engine`         | Recommended engine inertia [kg·m²] — use this when sizing the external `Inertia` block.                         | --  |   15 |
 | `RPM_min`         | Min RPM (clamps demand)                         | --  |   0 |
 | `RPM_max`         | Max RPM (clamps demand)                         | --  |   2200 |
@@ -228,6 +229,7 @@ Simplifications relative to upstream:
   ### Structural Parameters (functions)
 
   ### Structural Parameters (Final)
+  sfoc_table_length = checked_table_length(n_sfoc, SFOC_P, SFOC_g)
 
   ### Path Parameters (functions)
 
@@ -376,9 +378,9 @@ Simplifications relative to upstream:
 
   ### Assertions
   __assertions = []
-  push!(__assertions, (table_knots_valid(SFOC_P) > 0.5 => "SimpleDieselEngine: SFOC_P must be finite, nonnegative and strictly increasing (at SimpleDieselEngine.dyad:211:3)"))
-  push!(__assertions, (table_values_valid(SFOC_g) > 0.5 => "SimpleDieselEngine: SFOC_g must be finite and positive (at SimpleDieselEngine.dyad:212:3)"))
-  push!(__assertions, (rate_valid(m_dot_idle) > 0.5 => "SimpleDieselEngine: m_dot_idle must be finite and nonnegative (at SimpleDieselEngine.dyad:213:3)"))
+  push!(__assertions, (table_knots_valid(SFOC_P) > 0.5 => "SimpleDieselEngine: SFOC_P must be finite, nonnegative and strictly increasing (at SimpleDieselEngine.dyad:213:3)"))
+  push!(__assertions, (table_values_valid(SFOC_g) > 0.5 => "SimpleDieselEngine: SFOC_g must be finite and positive (at SimpleDieselEngine.dyad:214:3)"))
+  push!(__assertions, (rate_valid(m_dot_idle) > 0.5 => "SimpleDieselEngine: m_dot_idle must be finite and nonnegative (at SimpleDieselEngine.dyad:215:3)"))
 
   ### Equations
   push!(__eqs, shaft_w ~ ModelingToolkit.D_nounits(flange.phi))

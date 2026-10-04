@@ -3,8 +3,9 @@
 #  - files the loader cannot apply (unknown key, wrong type, a provenance sidecar, a
 #    missing file): the compiler reports each as an `urn:instantiate:apply-…` diagnostic
 #    while still exiting 0, and the component cannot be constructed;
-#  - arrays whose length disagrees with `n_sfoc`: the length is structural, so neither the
-#    compiler nor the constructor reports it; the problem cannot be built for a solve;
+#  - arrays whose length disagrees with `n_sfoc`: the compiler does not report it (the
+#    length is structural), and the engine refuses it with an `ArgumentError` when the
+#    component is constructed, before any problem is built;
 #  - files that load but cannot be metered (unordered, duplicate or non-finite knots,
 #    non-positive or non-finite SFOC, negative idle rate): the component is constructed
 #    and the engine's assertions end the run without a successful return code.
@@ -17,7 +18,7 @@ using DyadShipInvalidEnginePresets, DyadShip, Printf, Test, TOML
 
 const FX = DyadShipInvalidEnginePresets
 const PR = DyadShip.Propulsion
-const FILES = joinpath(pkgdir(FX), "assets", "presets", "invalid")
+const FILES = joinpath(pkgdir(FX), "assets", "presets", "Invalid")
 
 successful_retcode(sol) = string(sol.retcode) == "Success"
 
@@ -64,11 +65,17 @@ end
     for (file, ctor, analysis) in length_cases
         asset = TOML.parsefile(joinpath(FILES, file * ".toml"))
         @test !(length(asset["SFOC_P"]) == get(asset, "n_sfoc", 4) == length(asset["SFOC_g"]))
-        # Not caught at construction; the solve must not go ahead.
-        @test ctor(; name = :engine) !== nothing
-        outcome = run_outcome(analysis)
-        @printf("  %-22s run: %s\n", file, outcome)
-        @test outcome == :threw
+        # Refused when the component is constructed, with the three lengths named.
+        err = try
+            ctor(; name = :engine); nothing
+        catch e
+            e
+        end
+        @printf("  %-22s construction: %s\n", file, err === nothing ? "ACCEPTED" : first(replace(sprint(showerror, err), '\n' => ' '), 110))
+        @test err isa ArgumentError
+        @test err isa ArgumentError && occursin("SFOC table length mismatch", err.msg)
+        # And so the analysis never reaches a solve.
+        @test run_outcome(analysis) == :threw
     end
 end
 
@@ -95,7 +102,7 @@ if !isempty(ARGS)
         diags = filter(l -> occursin("urn:instantiate:apply-", l), split(log, '\n'))
         @printf("  %d apply diagnostics in %s\n", length(diags), ARGS[1])
         source = split(read(joinpath(pkgdir(FX), "dyad", "InvalidEnginePresets.dyad"), String), '\n')
-        reported(file) = (line = findfirst(l -> occursin("presets/invalid/$(file).toml", l), source);
+        reported(file) = (line = findfirst(l -> occursin("presets/Invalid/$(file).toml", l), source);
                           any(d -> occursin("InvalidEnginePresets.dyad:$(line):", d), diags))
         for (file, _) in loader_cases
             @test reported(file)
