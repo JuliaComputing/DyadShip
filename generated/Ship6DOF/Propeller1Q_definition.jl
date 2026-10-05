@@ -5,7 +5,7 @@
 
 
 @doc Markdown.doc"""
-   Propeller1Q(; name, Diameter, Z, P_D, Ae_Ao, Density_Prop, Inertia, Add_Inertia, Lpp, B, Cb, Cp, lcb, Fa, Rudder_distance, SeaDensity, WakeFraction, ThrustDeduction, RotativeRelative, w_floor, J_min, J_max)
+   Propeller1Q(; name, Diameter, Z, P_D, Ae_Ao, Density_Prop, Inertia, Add_Inertia, Lpp, B, Cb, Cp, lcb, Fa, Rudder_distance, SeaDensity, WakeFraction, ThrustDeduction, RotativeRelative, open_water_polynomial, Kt0, Kt1, Kt2, Kq0, Kq1, Kq2, w_floor, J_min, J_max)
 
 Wageningen B-series single-quadrant propeller on a 3D frame.
 
@@ -50,6 +50,13 @@ regression's range; the model is meant for ahead running (`J > 0`).
 | `WakeFraction`         | Wake fraction (Harvald 1983, single screw)                         | --  |   0.1 * B / L...) + 0.002)) |
 | `ThrustDeduction`         | Thrust deduction (Harvald 1983, single screw)                         | --  |   (0.625 * B ...Lpp - 0.04) |
 | `RotativeRelative`         | Relative rotative efficiency (Holtrop 1988, single screw)                         | --  |   0.9922 - 0....0225 * lcb) |
+| `open_water_polynomial`         | 1 to take the open-water curves from the polynomials below instead of the Wageningen B-series regression; 0 otherwise                         | --  |   0 |
+| `Kt0`         | Open-water thrust coefficient polynomial `Kt = Kt0 + Kt1 J + Kt2 J²`                         | --  |   0 |
+| `Kt1`         |                          | --  |   0 |
+| `Kt2`         |                          | --  |   0 |
+| `Kq0`         | Open-water torque coefficient polynomial `Kq = Kq0 + Kq1 J + Kq2 J²`; left at zero the shaft torque and power are zero                         | --  |   0 |
+| `Kq1`         |                          | --  |   0 |
+| `Kq2`         |                          | --  |   0 |
 | `w_floor`         | Shaft-speed floor keeping the open-water formulas defined at rest [rad/s]                         | rad/s  |   1e-3 |
 | `J_min`         | Lower clamp on the advance ratio fed to the regression                         | --  |   -0.5 |
 | `J_max`         | Upper clamp on the advance ratio fed to the regression                         | --  |   1.5 |
@@ -93,7 +100,7 @@ connectors that can be connected together ([`Frame3D`](@ref))
 | `V_x`         |                          | m/s  |
 | `Delta_r`         |                          | m  |
 """
-@component function Propeller1Q(; name = nothing, Diameter=Float64(4), Z=Float64(4), P_D=Float64(1), Ae_Ao=0.3, Density_Prop=Float64(7600), Lpp=Float64(100), B=Float64(20), Cb=0.693, Cp=0.75, lcb=-0.75, Fa=Float64(-2), SeaDensity=Float64(1025), w_floor=0.001, J_min=-0.5, J_max=1.5, Rudder_distance=Diameter * 1.2, Inertia=0.0002744 * Ae_Ao * (Ae_Ao + 3) * Density_Prop * Diameter ^ 5, RotativeRelative=0.9922 - 0.05908 * Ae_Ao + 0.07424 * (Cp - 0.0225 * lcb), WakeFraction=0.1 * B / Lpp + 0.149 + (((0.05 * B) / Lpp) + 0.449) / ((585 - 5027 * B / Lpp + 11700 * ((B / Lpp) ^ 2)) * (0.98 - Cb) ^ 3 + 1) + 0.025 * Fa / (100 * (Cb - 0.7) ^ 2 + 1) - 0.18 + (0.00756 / ((Diameter / Lpp) + 0.002)), ThrustDeduction=(0.625 * B / Lpp + 0.08) + (0.165 - 0.25 * B / Lpp) / ((525 - 8060 * B / Lpp + 20300 * (B / Lpp) ^ 2) * (0.98 - Cb) ^ 3 + 1) - 0.01 * Fa + 2 * (Diameter / Lpp - 0.04), Add_Inertia=0.3 * Inertia, kwargs...)
+@component function Propeller1Q(; name = nothing, Diameter=Float64(4), Z=Float64(4), P_D=Float64(1), Ae_Ao=0.3, Density_Prop=Float64(7600), Lpp=Float64(100), B=Float64(20), Cb=0.693, Cp=0.75, lcb=-0.75, Fa=Float64(-2), SeaDensity=Float64(1025), open_water_polynomial=Float64(0), Kt0=Float64(0), Kt1=Float64(0), Kt2=Float64(0), Kq0=Float64(0), Kq1=Float64(0), Kq2=Float64(0), w_floor=0.001, J_min=-0.5, J_max=1.5, Rudder_distance=Diameter * 1.2, Inertia=0.0002744 * Ae_Ao * (Ae_Ao + 3) * Density_Prop * Diameter ^ 5, RotativeRelative=0.9922 - 0.05908 * Ae_Ao + 0.07424 * (Cp - 0.0225 * lcb), WakeFraction=0.1 * B / Lpp + 0.149 + (((0.05 * B) / Lpp) + 0.449) / ((585 - 5027 * B / Lpp + 11700 * ((B / Lpp) ^ 2)) * (0.98 - Cb) ^ 3 + 1) + 0.025 * Fa / (100 * (Cb - 0.7) ^ 2 + 1) - 0.18 + (0.00756 / ((Diameter / Lpp) + 0.002)), ThrustDeduction=(0.625 * B / Lpp + 0.08) + (0.165 - 0.25 * B / Lpp) / ((525 - 8060 * B / Lpp + 20300 * (B / Lpp) ^ 2) * (0.98 - Cb) ^ 3 + 1) - 0.01 * Fa + 2 * (Diameter / Lpp - 0.04), Add_Inertia=0.3 * Inertia, kwargs...)
   isnothing(name) && throw(ArgumentError("""
     The `name` keyword must be provided. Please consider using the `@named` macro,
     like so:
@@ -178,6 +185,27 @@ connectors that can be connected together ([`Frame3D`](@ref))
   __local__RotativeRelative = RotativeRelative
   append!(__params, @parameters (RotativeRelative::Real), [description = "Relative rotative efficiency (Holtrop 1988, single screw)"])
   __initial_conditions[RotativeRelative] = __local__RotativeRelative
+  __local__open_water_polynomial = open_water_polynomial
+  append!(__params, @parameters (open_water_polynomial::Real), [description = "1 to take the open-water curves from the polynomials below instead of the Wageningen B-series regression; 0 otherwise"])
+  __initial_conditions[open_water_polynomial] = __local__open_water_polynomial
+  __local__Kt0 = Kt0
+  append!(__params, @parameters (Kt0::Real), [description = "Open-water thrust coefficient polynomial `Kt = Kt0 + Kt1 J + Kt2 J²`"])
+  __initial_conditions[Kt0] = __local__Kt0
+  __local__Kt1 = Kt1
+  append!(__params, @parameters (Kt1::Real))
+  __initial_conditions[Kt1] = __local__Kt1
+  __local__Kt2 = Kt2
+  append!(__params, @parameters (Kt2::Real))
+  __initial_conditions[Kt2] = __local__Kt2
+  __local__Kq0 = Kq0
+  append!(__params, @parameters (Kq0::Real), [description = "Open-water torque coefficient polynomial `Kq = Kq0 + Kq1 J + Kq2 J²`; left at zero the shaft torque and power are zero"])
+  __initial_conditions[Kq0] = __local__Kq0
+  __local__Kq1 = Kq1
+  append!(__params, @parameters (Kq1::Real))
+  __initial_conditions[Kq1] = __local__Kq1
+  __local__Kq2 = Kq2
+  append!(__params, @parameters (Kq2::Real))
+  __initial_conditions[Kq2] = __local__Kq2
   __local__w_floor = w_floor
   append!(__params, @parameters (w_floor::Real), [description = "Shaft-speed floor keeping the open-water formulas defined at rest [rad/s]"])
   __initial_conditions[w_floor] = __local__w_floor
@@ -329,8 +357,8 @@ connectors that can be connected together ([`Frame3D`](@ref))
   push!(__eqs, rpm ~ w * 60 / (2 * π))
   push!(__eqs, AdvanceSpeed ~ ShipSpeed * (1 - WakeFraction))
   push!(__eqs, J ~ clamp(AdvanceSpeed / (n * Diameter), J_min, J_max))
-  push!(__eqs, Kt ~ wageningen_kt(J, P_D, Ae_Ao, Z))
-  push!(__eqs, Kq ~ wageningen_kq(J, P_D, Ae_Ao, Z))
+  push!(__eqs, Kt ~ ifelse(open_water_polynomial > 0.5, Kt0 + Kt1 * J + Kt2 * J ^ 2, wageningen_kt(J, P_D, Ae_Ao, Z)))
+  push!(__eqs, Kq ~ ifelse(open_water_polynomial > 0.5, Kq0 + Kq1 * J + Kq2 * J ^ 2, wageningen_kq(J, P_D, Ae_Ao, Z)))
   push!(__eqs, Thrust_Kt ~ Kt * SeaDensity * n ^ 2 * Diameter ^ 4)
   push!(__eqs, Torque_Kq ~ Kq * SeaDensity * n ^ 2 * Diameter ^ 5)
   push!(__eqs, flange.tau ~ Torque_Kq * w / w_eff)

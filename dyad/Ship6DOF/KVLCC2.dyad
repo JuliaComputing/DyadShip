@@ -1,0 +1,108 @@
+"""
+The KVLCC2 research tanker at full scale, as a single-screw ship with an ideal speed
+governor: the counterpart of `StandardShip` for a published hull.
+
+What is taken from the literature (Yasukawa and Yoshimura, *Introduction of MMG standard
+method for ship maneuvering predictions*, J. Mar. Sci. Technol. 20 (2015) 37–52, open
+access; table and page of every value are in
+`assets/presets/Hull/kvlcc2_full_scale.provenance.toml`):
+
+- `hydro`: `HydrodynamicXYY` with the file `presets/Hull/kvlcc2_full_scale.toml`:
+  principal particulars, resistance coefficient, added masses and all sixteen hull
+  derivatives of the source's Table 3.
+- `ship`: displacement 312 600 m³ (320 415 t at 1025 kg/m³), centre of gravity 11.2 m
+  forward of midship, yaw gyradius 0.25 Lpp (Table 1 and the simulation conditions).
+- `prop`: diameter 9.86 m, open-water thrust `Kt = 0.2931 - 0.2753 J - 0.1385 J²`,
+  thrust deduction 0.220, full-scale wake fraction 0.35.
+- `rudder`: area 112.5 m² and height 15.80 m (chord 7.12 m), `a_H` = 0.312,
+  flow-straightening coefficient 0.395 in a port turn and 0.640 in a starboard turn
+  (the source's values for `β_R < 0` and `β_R > 0` in its starboard-positive axes; `Rudder`
+  uses `Gamma_R_Neg` in a port turn, so 0.395 is `Gamma_R_Neg`), steering rate 1.76 °/s.
+- approach speed 15.5 kn; the shaft speed that holds it, 106.7 rpm, follows from the
+  resistance coefficient, thrust deduction, wake and thrust polynomial above.
+
+What is **not** from the source, because its model has three degrees of freedom and
+this one six. These are assumptions made so the ship floats upright; they do not enter
+the surge, sway and yaw forces:
+
+- hydrostatics as a wall-sided prism: displacement proportional to draft, centre of
+  buoyancy at 0.52 of the draft and at the longitudinal centre of gravity, metacentric
+  radii `259.6 / T` and `7901 / T` m;
+- centre of gravity 18 m above the keel, roll and pitch gyradii at the `ShipBody`
+  defaults, heave, roll and pitch damping of `HydrodynamicZRP` with `Cw` = 0.9;
+- propeller 6 m forward of the aft perpendicular and 5.5 m above the keel, rudder stock
+  at the aft perpendicular, propeller-to-rudder distance 7.4 m, shaft inertia.
+
+What the existing components cannot represent of the source's model: the MMG rudder
+force model and its coefficients (`t_R`, `x'_H`, `ε`, `κ`, `l'_R`, `f_α`), since `Rudder`
+uses NACA 0015 lift and drag tables with its own slipstream model; the change of the
+propeller wake with drift; resistance on the total speed rather than the surge speed.
+The open-water torque is not published, so `prop.ShaftPower` is zero here.
+
+Extending components set `rudder_order` [deg, positive to port] and `shaft_rpm`.
+"""
+partial component KVLCC2Ship
+  "Initial speed along world x: 15.5 kn"
+  parameter U0::Velocity = 7.973889
+  "Shaft inertia including the propeller and entrained water (assumed)"
+  parameter J_shaft::Real = 4e5
+  world = MultibodyComponents.World(n = [0, 0, -1], g = 9.80665, render = false, nominal_length = 320)
+  ship = ShipBody(Lpp = 320, B = 58, Cb = 0.810, mass = 320415000, CoG = [171.2, 0, 18], I_zz = 320415000 * 6400, n_Disp = 1, Disp_Table = [[15404567.3, 1]], n_LCB = 1, LCB_Table = [[171.2, 0]], n_VCB = 1, VCB_Table = [[0.52, 1]], BMt_Table = [[259.568, -1]], BMl_Table = [[7901.23, -1]], ini_Pos = [0, 0, -20.8], ini_Vel = [U0, 0, 0])
+  hydro = HydrodynamicXYY(apply "dyad://DyadShip/presets/Hull/kvlcc2_full_scale.toml")
+  zrp = HydrodynamicZRP(Lpp = 320, B = 58, mass = 320415000, Cw = 0.9, GM = 5.3, GM_L = 372)
+  prop_mount = MultibodyComponents.FixedTranslation(r = [6, 0, 5.5], render = false)
+  prop = Propeller1Q(Diameter = 9.86, Lpp = 320, B = 58, Cb = 0.810, WakeFraction = 0.35, ThrustDeduction = 0.220, Rudder_distance = 7.4, open_water_polynomial = 1, Kt0 = 0.2931, Kt1 = -0.2753, Kt2 = -0.1385)
+  shaft = RotationalComponents.Components.Inertia(J = J_shaft)
+  governor = RotationalComponents.Sources.VelocitySource()
+  ground = RotationalComponents.Components.Fixed()
+  rudder_mount = MultibodyComponents.FixedTranslation(r = [0, 0, 16.5], render = false)
+  rudder = Rudder(Lpp = 320, B = 58, Cb = 0.810, T = 20.8, C = 7.12, s = 15.8, Rudder_distance = 7.4, a_h = 0.312, Gamma_R_Pos = 0.640, Gamma_R_Neg = 0.395, MaxRudderAngularSpeed = 1.76)
+  "Rudder angle order [deg], positive to port"
+  variable rudder_order::Real
+  "Shaft speed order [rpm]"
+  variable shaft_rpm::Real
+relations
+  initial shaft.phi = 0
+  connect(ship.frame_a, hydro.frame_a, zrp.frame_a, prop_mount.frame_a, rudder_mount.frame_a)
+  connect(prop_mount.frame_b, prop.frame_a)
+  connect(rudder_mount.frame_b, rudder.frame_a)
+  connect(ship.Draft, hydro.MeanDraft)
+  connect(ship.Draft, zrp.MeanDraft)
+  connect(ship.Displacement, hydro.Displacement)
+  connect(ship.Displacement, zrp.Displacement)
+  hydro.Current_x = 0
+  hydro.Current_y = 0
+  prop.Current_x = 0
+  prop.Current_y = 0
+  rudder.Current_x = 0
+  rudder.Current_y = 0
+  connect(prop.Propeller_speed, rudder.Propeller_speed)
+  connect(prop.Propeller_flow_diameter, rudder.Propeller_flow_diameter)
+  connect(prop.Wake_Fraction, rudder.Wake_Fraction)
+  connect(governor.support, ground.spline)
+  connect(governor.spline, shaft.spline_a)
+  connect(shaft.spline_b, prop.flange)
+  governor.w_ref = shaft_rpm * π / 30
+  rudder.Rudder_Order = rudder_order
+end
+
+"""
+Turning circle of the full-scale KVLCC2 from 15.5 kn at a constant 106.7 rpm: the rudder
+goes to `rudder_deg` (positive to port) at `t_rudder`. Advance and tactical diameter are
+read from the track (`ship.pos_x`, `ship.pos_y`) at 90° and 180° change of heading and
+compared with the published values by `scripts/validate_kvlcc2.jl`.
+"""
+test component KVLCC2TurningCircle
+  extends KVLCC2Ship
+  parameter rpm::Real = 106.7106
+  parameter rudder_deg::Real = 35
+  parameter t_rudder::Time = 100
+relations
+  rudder_order = ifelse(time > t_rudder, rudder_deg, 0)
+  shaft_rpm = rpm
+end
+
+analysis KVLCC2TurningCircleTransient
+  extends TransientAnalysis(stop = 2400.0, tstops = [100.0])
+  model = KVLCC2TurningCircle()
+end
