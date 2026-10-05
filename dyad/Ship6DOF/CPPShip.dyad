@@ -1,0 +1,57 @@
+"""
+The sample ship with a controllable pitch propeller at a constant shaft speed: the
+speed is changed by pitch alone. The assembly is that of `StandardShip` (hull,
+hydrodynamics, rudder, ideal speed governor) with `ControllablePitchPropeller` in place
+of the fixed-pitch propeller, written out here because the propeller of
+`SingleScrewHull` cannot be exchanged.
+
+The shaft runs at `rpm` throughout. The pitch order starts at 1.0 and steps to 0.8 at
+`t_1` and to 0.6 at `t_2`; the ship settles at a lower speed each time, and thrust,
+torque and shaft power fall with the pitch.
+"""
+test component CPPShipPitchSteps
+  parameter U0::Velocity = 6
+  parameter rpm::Real = 100
+  parameter t_1::Time = 600
+  parameter t_2::Time = 1200
+  world = MultibodyComponents.World(n = [0, 0, -1], g = 9.80665, render = false, nominal_length = 100)
+  ship = ShipBody(ini_Vel = [U0, 0, 0])
+  hydro = HydrodynamicXYY()
+  zrp = HydrodynamicZRP()
+  prop_mount = MultibodyComponents.FixedTranslation(r = [1, 0, 2], render = false)
+  prop = ControllablePitchPropeller(Diameter = 4, P_D = 1.0, Ae_Ao = 0.55, Z = 4)
+  shaft = RotationalComponents.Components.Inertia(J = 4000)
+  governor = RotationalComponents.Sources.VelocitySource()
+  ground = RotationalComponents.Components.Fixed()
+  rudder_mount = MultibodyComponents.FixedTranslation(r = [-2, 0, 4.5], render = false)
+  rudder = Rudder()
+relations
+  initial shaft.phi = 0
+  connect(ship.frame_a, hydro.frame_a, zrp.frame_a, prop_mount.frame_a, rudder_mount.frame_a)
+  connect(prop_mount.frame_b, prop.frame_a)
+  connect(rudder_mount.frame_b, rudder.frame_a)
+  connect(ship.Draft, hydro.MeanDraft)
+  connect(ship.Draft, zrp.MeanDraft)
+  connect(ship.Displacement, hydro.Displacement)
+  connect(ship.Displacement, zrp.Displacement)
+  hydro.Current_x = 0
+  hydro.Current_y = 0
+  prop.Current_x = 0
+  prop.Current_y = 0
+  rudder.Current_x = 0
+  rudder.Current_y = 0
+  connect(prop.Propeller_speed, rudder.Propeller_speed)
+  connect(prop.Propeller_flow_diameter, rudder.Propeller_flow_diameter)
+  connect(prop.Wake_Fraction, rudder.Wake_Fraction)
+  connect(governor.support, ground.spline)
+  connect(governor.spline, shaft.spline_a)
+  connect(shaft.spline_b, prop.flange)
+  governor.w_ref = rpm * π / 30
+  rudder.Rudder_Order = 0
+  prop.Pitch_order = ifelse(time > t_2, 0.6, ifelse(time > t_1, 0.8, 1.0))
+end
+
+analysis CPPShipPitchStepsTransient
+  extends TransientAnalysis(stop = 1800.0, tstops = [600.0, 1200.0])
+  model = CPPShipPitchSteps()
+end

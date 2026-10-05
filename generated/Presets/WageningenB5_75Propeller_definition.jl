@@ -130,6 +130,7 @@ connectors that can be connected together ([`Frame3D`](@ref))
     "w_floor" => (base="Real", dims=Int[], min=nothing, max=nothing, structural=false, final=false, initial=false, guess=false),
     "J_min" => (base="Real", dims=Int[], min=nothing, max=nothing, structural=false, final=false, initial=false, guess=false),
     "J_max" => (base="Real", dims=Int[], min=nothing, max=nothing, structural=false, final=false, initial=false, guess=false),
+    "pitch_ratio" => (base="Real", dims=Int[], min=nothing, max=nothing, structural=false, final=false, initial=true, guess=true),
     "w" => (base="Real", dims=Int[], min=nothing, max=nothing, structural=false, final=false, initial=true, guess=true),
     "w_eff" => (base="Real", dims=Int[], min=nothing, max=nothing, structural=false, final=false, initial=true, guess=true),
     "n" => (base="Real", dims=Int[], min=nothing, max=nothing, structural=false, final=false, initial=true, guess=true),

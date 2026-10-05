@@ -143,6 +143,47 @@ relations
 end
 
 """
+The powered KVLCC2 as a component that another model can hold as a subcomponent (a
+partial component cannot be one): `PoweredKVLCC2Ship` with its propeller shaft and
+rudder order brought out as connectors. Connect a plant to `propeller_flange` and give
+`rudder_order_deg` [deg, positive to port]. It contains the `world` of its multibody
+parts, so the model that holds it must not add another.
+"""
+component KVLCC2Vessel
+  extends PoweredKVLCC2Ship
+  "Propeller shaft; positive rotation is ahead"
+  propeller_flange = Spline()
+  "Rudder angle order [deg], positive to port"
+  rudder_order_deg = RealInput()
+  "Forward speed [m/s]"
+  speed = RealOutput()
+relations
+  connect(propeller_flange, shaft.spline_a)
+  rudder_order = rudder_order_deg
+  speed = ship.Surge
+end
+
+"""
+`KVLCC2Vessel` held as a subcomponent, with a plant beside it: the powering run of
+`KVLCC2Powering` built from two components instead of by extension.
+"""
+test component KVLCC2VesselWithPlant
+  parameter rpm::Real = 73.7
+  vessel = KVLCC2Vessel()
+  plant = IdealGovernorPlant()
+relations
+  connect(plant.propeller_flange, vessel.propeller_flange)
+  plant.shaft_speed_order = rpm
+  plant.hotel_power_demand = 0
+  vessel.rudder_order_deg = -(3 * vessel.ship.Yaw + 80 * vessel.ship.YawRate) * 180 / π
+end
+
+analysis KVLCC2VesselWithPlantTransient
+  extends TransientAnalysis(stop = 600.0)
+  model = KVLCC2VesselWithPlant()
+end
+
+"""
 Straight-line powering run of the KVLCC2 with a plant in the plant slot: the shaft order
 is held at `rpm` and the ship runs at the speed where thrust balances resistance. The
 plant is `IdealGovernorPlant`, which has no engine; the library's diesel engine is some
