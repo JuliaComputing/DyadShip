@@ -202,12 +202,13 @@ models. This one has six degrees of freedom, the library's `Rudder` and a
 constant wake fraction; the vertical hydrostatics, the height of the centre
 of gravity and the positions of propeller and rudder are stated assumptions.
 With nothing tuned, the 35° turning circles from 15.5 kn come out with an
-advance of 4.04 (port) and 4.16 (starboard) ship lengths and a tactical
-diameter of 3.75 and 3.98, against 3.56 / 3.62 and 3.59 / 3.71 in the
-source's own full-scale simulation: the advance is 13–15 % larger and the
-tactical diameter 4–7 % larger. Against the source's free-running test of a
-7 m model, which has no full-scale counterpart, they are 28–30 % and
-19–22 % larger. `scripts/validate_kvlcc2.jl` prints the comparison.
+advance of 4.16 (port) and 4.04 (starboard) ship lengths and a tactical
+diameter of 3.98 and 3.75, against 3.56 / 3.62 and 3.59 / 3.71 in the
+source's own full-scale simulation: the advance is 12–17 % larger and the
+tactical diameter 1–11 % larger. The source's port turn is the tighter one;
+here the starboard turn is. Against the source's free-running test of a 7 m
+model, which has no full-scale counterpart, they are 24–34 % and 12–29 %
+larger. `scripts/validate_kvlcc2.jl` prints the comparison.
 
 `Propulsion.SyntheticDieselEngineA` and `SyntheticDieselEngineB` are parameter
 presets of the one `SimpleDieselEngine`: a wrapper without equations holds the

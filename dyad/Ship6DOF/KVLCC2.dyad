@@ -15,7 +15,9 @@ access; table and page of every value are in
 - `prop`: diameter 9.86 m, open-water thrust `Kt = 0.2931 - 0.2753 J - 0.1385 J²`,
   thrust deduction 0.220, full-scale wake fraction 0.35.
 - `rudder`: area 112.5 m² and height 15.80 m (chord 7.12 m), `a_H` = 0.312,
-  flow-straightening coefficients 0.395 and 0.640, steering rate 1.76 °/s.
+  flow-straightening coefficient 0.395 in a port turn and 0.640 in a starboard turn
+  (the source's values for `β_R < 0` and `β_R > 0` in its starboard-positive axes; `Rudder`
+  uses `Gamma_R_Neg` in a port turn, so 0.395 is `Gamma_R_Neg`), steering rate 1.76 °/s.
 - approach speed 15.5 kn; the shaft speed that holds it, 106.7 rpm, follows from the
   resistance coefficient, thrust deduction, wake and thrust polynomial above.
 
@@ -54,7 +56,7 @@ partial component KVLCC2Ship
   governor = RotationalComponents.Sources.VelocitySource()
   ground = RotationalComponents.Components.Fixed()
   rudder_mount = MultibodyComponents.FixedTranslation(r = [0, 0, 16.5], render = false)
-  rudder = Rudder(Lpp = 320, B = 58, Cb = 0.810, T = 20.8, C = 7.12, s = 15.8, Rudder_distance = 7.4, a_h = 0.312, Gamma_R_Pos = 0.395, Gamma_R_Neg = 0.640, MaxRudderAngularSpeed = 1.76)
+  rudder = Rudder(Lpp = 320, B = 58, Cb = 0.810, T = 20.8, C = 7.12, s = 15.8, Rudder_distance = 7.4, a_h = 0.312, Gamma_R_Pos = 0.640, Gamma_R_Neg = 0.395, MaxRudderAngularSpeed = 1.76)
   "Rudder angle order [deg], positive to port"
   variable rudder_order::Real
   "Shaft speed order [rpm]"

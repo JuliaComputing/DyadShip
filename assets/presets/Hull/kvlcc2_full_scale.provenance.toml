@@ -89,7 +89,7 @@ status = "Ship6DOF.Propeller1Q has a constant wake fraction"
 
 [[not_representable]]
 item = "MMG rudder model: tR = 0.387, x'H = -0.464, epsilon = 1.09, kappa = 0.50, l'R = -0.710, f_alpha = 2.747"
-status = "Ship6DOF.Rudder computes lift and drag from NACA 0015 tables and its own slipstream model; it takes the rudder area and height, aH = 0.312 and the flow-straightening coefficients 0.395 / 0.640, but not these six"
+status = "Ship6DOF.Rudder computes lift and drag from NACA 0015 tables and its own slipstream model; it takes the rudder area and height, aH = 0.312 and the flow-straightening coefficients, but not these six. The source gives gamma_R = 0.395 for beta_R < 0 and 0.640 for beta_R > 0 in axes positive to starboard (Table 3, journal p. 49), that is 0.395 in a port turn and 0.640 in a starboard turn. Rudder selects Gamma_R_Neg when its own inflow angle is positive, which is the case in a port turn, so KVLCC2Ship sets Gamma_R_Neg = 0.395 and Gamma_R_Pos = 0.640."
 
 [[not_representable]]
 item = "open-water torque coefficient of the propeller"

@@ -79,6 +79,10 @@ end
     # Rudder to port turns the ship to port (positive y), and conversely.
     @test port.side > 0
     @test starboard.side < 0
+    # Flow straightening at the rudder in the steady turn: the source's value for a port
+    # turn (its beta_R < 0) is 0.395 and for a starboard turn 0.640.
+    @test port.sol[port.m.rudder.Gamma_R][end] == 0.395
+    @test starboard.sol[starboard.m.rudder.Gamma_R][end] == 0.640
     # The turn costs speed and settles to a steady rate.
     @test 0.4 < port.sol[port.m.ship.Surge][end] / port.sol[port.m.ship.Surge][port.i0] < 0.7
     for (name, run) in ((:port, port), (:starboard, starboard))

@@ -212,7 +212,7 @@ compared with the published values by `scripts/validate_kvlcc2.jl`.
   push!(__systems, @named rudder_mount = MultibodyComponents.FixedTranslation(; r=[Float64(0), Float64(0), 16.5], render=false, rudder_mount_overrides...))
   # Subcomponent rudder of type DyadShip.Ship6DOF.Rudder
   rudder_overrides = __pop_subcomponent_overrides!(__overrides, "rudder")
-  push!(__systems, @named rudder = DyadShip.Ship6DOF.Rudder(; Lpp=Float64(320), B=Float64(58), Cb=0.81, T=20.8, C=7.12, s=15.8, Rudder_distance=7.4, a_h=0.312, Gamma_R_Pos=0.395, Gamma_R_Neg=0.64, MaxRudderAngularSpeed=1.76, rudder_overrides...))
+  push!(__systems, @named rudder = DyadShip.Ship6DOF.Rudder(; Lpp=Float64(320), B=Float64(58), Cb=0.81, T=20.8, C=7.12, s=15.8, Rudder_distance=7.4, a_h=0.312, Gamma_R_Pos=0.64, Gamma_R_Neg=0.395, MaxRudderAngularSpeed=1.76, rudder_overrides...))
 
   ### Check there are no unmatched overrides
   isempty(__overrides) || throw(ArgumentError("overrides: [$(join(keys(__overrides), ", "))] don't match names found in model. These names may exist in the model but could have been conditionally excluded."))
