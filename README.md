@@ -243,6 +243,33 @@ and 4.38 (starboard) ship lengths, tactical diameter 4.08 and 3.87, that is
 21–26 % and 4–14 % above the source's full-scale simulation. The slower
 propeller gives the rudder less slipstream.
 
+`Ship6DOF.KVLCC2Vessel` is the powered KVLCC2 as an ordinary component, with
+the propeller shaft and the rudder order as connectors, for a model that
+wants to hold the ship as a subcomponent instead of extending a partial.
+
+### A controllable pitch propeller
+
+`Ship6DOF.ControllablePitchPropeller` gives thrust and torque from the shaft
+speed, the speed of advance and a pitch order. It shares everything with the
+fixed-pitch `Propeller1Q` through the partial `Propeller1QBase` (connectors,
+parameters, open-water lookup, thrust, torque reaction, slipstream) and
+differs in one line: the pitch ratio follows `Pitch_order`, held to the range
+of the regression (0.5 to 1.4), with a first-order lag. The open-water data
+are the Wageningen B-screw series polynomials of Oosterveld and van Oossanen
+(1975), which the library already carries, read at the pitch in use. The
+series propellers are fixed-pitch designs, so this treats the propeller as
+the series propeller of the same pitch at each setting: there is no zero or
+reverse pitch and no off-design loss.
+
+`CPPShipPitchStepsTransient` runs the sample ship at a constant 100 rpm and
+steps the pitch:
+
+| P/D | Speed [m/s] | J | Thrust [kN] | Torque [kN·m] | Shaft power [kW] |
+|---|---|---|---|---|---|
+| 1.0 | 6.054 | 0.604 | 129.1 | 106.0 | 1110 |
+| 0.8 | 5.300 | 0.528 | 92.5 | 65.6 | 687 |
+| 0.6 | 4.330 | 0.432 | 60.4 | 37.9 | 397 |
+
 `Propulsion.SyntheticDieselEngineA` and `SyntheticDieselEngineB` are parameter
 presets of the one `SimpleDieselEngine`: a wrapper without equations holds the
 engine as `core` and loads `assets/presets/Synthetic/diesel_engine_{a,b}.toml`

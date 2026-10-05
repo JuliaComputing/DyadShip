@@ -1,26 +1,11 @@
 """
-Wageningen B-series single-quadrant propeller on a 3D frame.
-
-Port of `ShipSIM.Components.Propulsion.Propeller1Q`. The propeller reads its
-own speed through the water from `frame_a` (an internal `ApparentSpeedXY`
-subtracts the current), evaluates the full Oosterveld & van Oossanen (1975)
-`Kt(J)` / `Kq(J)` regression through `wageningen_kt` / `wageningen_kq`, and
-applies the thrust `Kt ρ n² D⁴ (1 - t)` along the frame's x axis together with
-the shaft-torque reaction `-Q` about it (so a 6-DOF hull feels the small
-heeling moment of the propeller).
-
-The shaft connects through `flange`; the propeller itself is algebraic on the
-shaft (`flange.tau = Q`), so attach an external
-`RotationalComponents.Components.Inertia` carrying `Inertia + Add_Inertia`.
-Wake fraction, thrust deduction and relative rotative efficiency default to
-the Harvald (1983) and Holtrop (1988) single-screw estimates used upstream.
-
-The slipstream outputs `Propeller_flow_diameter` / `Propeller_speed` (Brix
-1993) feed a downstream `Rudder`. The advance ratio is clamped to
-`[J_min, J_max]` so a stopped or windmilling shaft stays inside the
-regression's range; the model is meant for ahead running (`J > 0`).
+Everything of the Wageningen B-series propeller on a 3D frame except where its pitch
+ratio comes from: connectors, parameters, open-water lookup, thrust, torque reaction and
+slipstream outputs. `Propeller1Q` fixes the pitch ratio at the parameter `P_D`;
+`ControllablePitchPropeller` takes it from a pitch order. Extending components give
+`pitch_ratio`.
 """
-component Propeller1Q
+partial component Propeller1QBase
   "Shaft connector"
   flange = Spline()
   "Propeller position on the hull; thrust acts along the frame's +x"
@@ -99,6 +84,8 @@ component Propeller1Q
   "Upper clamp on the advance ratio fed to the regression"
   parameter J_max::Real = 1.5
 
+  "Pitch ratio in use; set by the extending component"
+  variable pitch_ratio::Real
   variable w::AngularVelocity
   variable w_eff::AngularVelocity
   "Revolutions per second"
@@ -131,8 +118,8 @@ relations
 
   AdvanceSpeed = ShipSpeed * (1 - WakeFraction)
   J = clamp(AdvanceSpeed / (n * Diameter), J_min, J_max)
-  Kt = ifelse(open_water_polynomial > 0.5, Kt0 + Kt1 * J + Kt2 * J^2, wageningen_kt(J, P_D, Ae_Ao, Z))
-  Kq = ifelse(open_water_polynomial > 0.5, Kq0 + Kq1 * J + Kq2 * J^2, wageningen_kq(J, P_D, Ae_Ao, Z))
+  Kt = ifelse(open_water_polynomial > 0.5, Kt0 + Kt1 * J + Kt2 * J^2, wageningen_kt(J, pitch_ratio, Ae_Ao, Z))
+  Kq = ifelse(open_water_polynomial > 0.5, Kq0 + Kq1 * J + Kq2 * J^2, wageningen_kq(J, pitch_ratio, Ae_Ao, Z))
   Thrust_Kt = Kt * SeaDensity * n^2 * Diameter^4
   Torque_Kq = Kq * SeaDensity * n^2 * Diameter^5
 
@@ -159,4 +146,74 @@ relations
   Delta_r = 0.15 * Rudder_distance * ((V_inf * r_inf^2 - AdvanceSpeed * r_x^2) / (V_inf * r_inf^2 + AdvanceSpeed * r_x^2))
   Propeller_flow_diameter = 2 * (r_x + Delta_r)
   Propeller_speed = (V_x - AdvanceSpeed) * (r_x^2 / (r_x + Delta_r)^2) + AdvanceSpeed
+end
+
+"""
+Wageningen B-series single-quadrant propeller on a 3D frame.
+
+Port of `ShipSIM.Components.Propulsion.Propeller1Q`. The propeller reads its
+own speed through the water from `frame_a` (an internal `ApparentSpeedXY`
+subtracts the current), evaluates the full Oosterveld & van Oossanen (1975)
+`Kt(J)` / `Kq(J)` regression through `wageningen_kt` / `wageningen_kq`, and
+applies the thrust `Kt ρ n² D⁴ (1 - t)` along the frame's x axis together with
+the shaft-torque reaction `-Q` about it (so a 6-DOF hull feels the small
+heeling moment of the propeller).
+
+The shaft connects through `flange`; the propeller itself is algebraic on the
+shaft (`flange.tau = Q`), so attach an external
+`RotationalComponents.Components.Inertia` carrying `Inertia + Add_Inertia`.
+Wake fraction, thrust deduction and relative rotative efficiency default to
+the Harvald (1983) and Holtrop (1988) single-screw estimates used upstream.
+
+The slipstream outputs `Propeller_flow_diameter` / `Propeller_speed` (Brix
+1993) feed a downstream `Rudder`. The advance ratio is clamped to
+`[J_min, J_max]` so a stopped or windmilling shaft stays inside the
+regression's range; the model is meant for ahead running (`J > 0`).
+"""
+component Propeller1Q
+  extends Propeller1QBase
+relations
+  pitch_ratio = P_D
+end
+
+"""
+Controllable pitch propeller: `Propeller1QBase` with the pitch ratio following a pitch
+order.
+
+Thrust and torque come from the same open-water regression as the fixed-pitch
+`Propeller1Q`, the Wageningen B-screw series polynomials `Kt(J, P/D, Ae/Ao, Z)` and
+`Kq(J, P/D, Ae/Ao, Z)` of Oosterveld and van Oossanen (1975, *Further computer-analyzed
+data of the Wageningen B-screw series*, International Shipbuilding Progress 22(251),
+251–262; curves in Bernitsas, Ray and Kinley 1981, University of Michigan report 237),
+evaluated at the pitch ratio in use instead of a fixed one. The coefficient table is the
+one this library already carries; it was not re-checked against the publication here.
+
+`Pitch_order` is a pitch ratio. It is held to `[P_D_min, P_D_max]`, by default the range
+of the regression (0.5 to 1.4), and the blades follow it with a first-order lag of
+`T_pitch` seconds from the initial pitch ratio `P_D`. `Pitch_ratio` reports the pitch
+ratio in use.
+
+What this is and is not. The B-series propellers are fixed-pitch propellers, each
+designed for its pitch; reading the series across pitch ratio treats a controllable
+pitch propeller as the series propeller of the same pitch at every setting. A real one
+turns blades of one design pitch distribution, so off its design pitch it is somewhat
+less efficient than this, and it has a larger hub. There is no zero or reverse pitch
+(the series stops at 0.5), no blade spindle torque and no pitch-actuator power.
+"""
+component ControllablePitchPropeller
+  extends Propeller1QBase
+  "Pitch order: the pitch ratio asked for"
+  Pitch_order = RealInput()
+  "Pitch ratio in use"
+  Pitch_ratio = RealOutput()
+  "Lowest pitch ratio (lower end of the regression)"
+  parameter P_D_min::Real = 0.5
+  "Highest pitch ratio (upper end of the regression)"
+  parameter P_D_max::Real = 1.4
+  "Time constant of the pitch mechanism [s]"
+  parameter T_pitch::Time = 10
+relations
+  initial pitch_ratio = P_D
+  T_pitch * der(pitch_ratio) = clamp(Pitch_order, P_D_min, P_D_max) - pitch_ratio
+  Pitch_ratio = pitch_ratio
 end

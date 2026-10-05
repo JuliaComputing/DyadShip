@@ -5,28 +5,30 @@
 
 
 @doc Markdown.doc"""
-   Propeller1Q(; name, Diameter, Z, P_D, Ae_Ao, Density_Prop, Inertia, Add_Inertia, Lpp, B, Cb, Cp, lcb, Fa, Rudder_distance, SeaDensity, WakeFraction, ThrustDeduction, RotativeRelative, open_water_polynomial, Kt0, Kt1, Kt2, Kq0, Kq1, Kq2, w_floor, J_min, J_max)
+   ControllablePitchPropeller(; name, Diameter, Z, P_D, Ae_Ao, Density_Prop, Inertia, Add_Inertia, Lpp, B, Cb, Cp, lcb, Fa, Rudder_distance, SeaDensity, WakeFraction, ThrustDeduction, RotativeRelative, open_water_polynomial, Kt0, Kt1, Kt2, Kq0, Kq1, Kq2, w_floor, J_min, J_max, P_D_min, P_D_max, T_pitch)
 
-Wageningen B-series single-quadrant propeller on a 3D frame.
+Controllable pitch propeller: `Propeller1QBase` with the pitch ratio following a pitch
+order.
 
-Port of `ShipSIM.Components.Propulsion.Propeller1Q`. The propeller reads its
-own speed through the water from `frame_a` (an internal `ApparentSpeedXY`
-subtracts the current), evaluates the full Oosterveld & van Oossanen (1975)
-`Kt(J)` / `Kq(J)` regression through `wageningen_kt` / `wageningen_kq`, and
-applies the thrust `Kt ρ n² D⁴ (1 - t)` along the frame's x axis together with
-the shaft-torque reaction `-Q` about it (so a 6-DOF hull feels the small
-heeling moment of the propeller).
+Thrust and torque come from the same open-water regression as the fixed-pitch
+`Propeller1Q`, the Wageningen B-screw series polynomials `Kt(J, P/D, Ae/Ao, Z)` and
+`Kq(J, P/D, Ae/Ao, Z)` of Oosterveld and van Oossanen (1975, *Further computer-analyzed
+data of the Wageningen B-screw series*, International Shipbuilding Progress 22(251),
+251–262; curves in Bernitsas, Ray and Kinley 1981, University of Michigan report 237),
+evaluated at the pitch ratio in use instead of a fixed one. The coefficient table is the
+one this library already carries; it was not re-checked against the publication here.
 
-The shaft connects through `flange`; the propeller itself is algebraic on the
-shaft (`flange.tau = Q`), so attach an external
-`RotationalComponents.Components.Inertia` carrying `Inertia + Add_Inertia`.
-Wake fraction, thrust deduction and relative rotative efficiency default to
-the Harvald (1983) and Holtrop (1988) single-screw estimates used upstream.
+`Pitch_order` is a pitch ratio. It is held to `[P_D_min, P_D_max]`, by default the range
+of the regression (0.5 to 1.4), and the blades follow it with a first-order lag of
+`T_pitch` seconds from the initial pitch ratio `P_D`. `Pitch_ratio` reports the pitch
+ratio in use.
 
-The slipstream outputs `Propeller_flow_diameter` / `Propeller_speed` (Brix
-1993) feed a downstream `Rudder`. The advance ratio is clamped to
-`[J_min, J_max]` so a stopped or windmilling shaft stays inside the
-regression's range; the model is meant for ahead running (`J > 0`).
+What this is and is not. The B-series propellers are fixed-pitch propellers, each
+designed for its pitch; reading the series across pitch ratio treats a controllable
+pitch propeller as the series propeller of the same pitch at every setting. A real one
+turns blades of one design pitch distribution, so off its design pitch it is somewhat
+less efficient than this, and it has a larger hub. There is no zero or reverse pitch
+(the series stops at 0.5), no blade spindle torque and no pitch-actuator power.
 
 ## Parameters:
 
@@ -60,6 +62,9 @@ regression's range; the model is meant for ahead running (`J > 0`).
 | `w_floor`         | Shaft-speed floor keeping the open-water formulas defined at rest [rad/s]                         | rad/s  |   1e-3 |
 | `J_min`         | Lower clamp on the advance ratio fed to the regression                         | --  |   -0.5 |
 | `J_max`         | Upper clamp on the advance ratio fed to the regression                         | --  |   1.5 |
+| `P_D_min`         | Lowest pitch ratio (lower end of the regression)                         | --  |   0.5 |
+| `P_D_max`         | Highest pitch ratio (upper end of the regression)                         | --  |   1.4 |
+| `T_pitch`         | Time constant of the pitch mechanism [s]                         | s  |   10 |
 
 ## Connectors
 
@@ -77,6 +82,8 @@ connectors that can be connected together ([`Frame3D`](@ref))
  * `ShaftPower` - This connector represents a real signal as an output from a component ([`RealOutput`](@ref))
  * `ThrustPower` - This connector represents a real signal as an output from a component ([`RealOutput`](@ref))
  * `Nu_propulsive` - This connector represents a real signal as an output from a component ([`RealOutput`](@ref))
+ * `Pitch_order` - This connector represents a real signal as an input to a component ([`RealInput`](@ref))
+ * `Pitch_ratio` - This connector represents a real signal as an output from a component ([`RealOutput`](@ref))
 
 ## Variables
 
@@ -101,12 +108,12 @@ connectors that can be connected together ([`Frame3D`](@ref))
 | `V_x`         |                          | m/s  |
 | `Delta_r`         |                          | m  |
 """
-@component function Propeller1Q(; name = nothing, Diameter=Float64(4), Z=Float64(4), P_D=Float64(1), Ae_Ao=0.3, Density_Prop=Float64(7600), Lpp=Float64(100), B=Float64(20), Cb=0.693, Cp=0.75, lcb=-0.75, Fa=Float64(-2), SeaDensity=Float64(1025), open_water_polynomial=Float64(0), Kt0=Float64(0), Kt1=Float64(0), Kt2=Float64(0), Kq0=Float64(0), Kq1=Float64(0), Kq2=Float64(0), w_floor=0.001, J_min=-0.5, J_max=1.5, Rudder_distance=Diameter * 1.2, Inertia=0.0002744 * Ae_Ao * (Ae_Ao + 3) * Density_Prop * Diameter ^ 5, RotativeRelative=0.9922 - 0.05908 * Ae_Ao + 0.07424 * (Cp - 0.0225 * lcb), WakeFraction=0.1 * B / Lpp + 0.149 + (((0.05 * B) / Lpp) + 0.449) / ((585 - 5027 * B / Lpp + 11700 * ((B / Lpp) ^ 2)) * (0.98 - Cb) ^ 3 + 1) + 0.025 * Fa / (100 * (Cb - 0.7) ^ 2 + 1) - 0.18 + (0.00756 / ((Diameter / Lpp) + 0.002)), ThrustDeduction=(0.625 * B / Lpp + 0.08) + (0.165 - 0.25 * B / Lpp) / ((525 - 8060 * B / Lpp + 20300 * (B / Lpp) ^ 2) * (0.98 - Cb) ^ 3 + 1) - 0.01 * Fa + 2 * (Diameter / Lpp - 0.04), Add_Inertia=0.3 * Inertia, kwargs...)
+@component function ControllablePitchPropeller(; name = nothing, Diameter=Float64(4), Z=Float64(4), P_D=Float64(1), Ae_Ao=0.3, Density_Prop=Float64(7600), Lpp=Float64(100), B=Float64(20), Cb=0.693, Cp=0.75, lcb=-0.75, Fa=Float64(-2), SeaDensity=Float64(1025), open_water_polynomial=Float64(0), Kt0=Float64(0), Kt1=Float64(0), Kt2=Float64(0), Kq0=Float64(0), Kq1=Float64(0), Kq2=Float64(0), w_floor=0.001, J_min=-0.5, J_max=1.5, P_D_min=0.5, P_D_max=1.4, T_pitch=Float64(10), Rudder_distance=Diameter * 1.2, Inertia=0.0002744 * Ae_Ao * (Ae_Ao + 3) * Density_Prop * Diameter ^ 5, RotativeRelative=0.9922 - 0.05908 * Ae_Ao + 0.07424 * (Cp - 0.0225 * lcb), WakeFraction=0.1 * B / Lpp + 0.149 + (((0.05 * B) / Lpp) + 0.449) / ((585 - 5027 * B / Lpp + 11700 * ((B / Lpp) ^ 2)) * (0.98 - Cb) ^ 3 + 1) + 0.025 * Fa / (100 * (Cb - 0.7) ^ 2 + 1) - 0.18 + (0.00756 / ((Diameter / Lpp) + 0.002)), ThrustDeduction=(0.625 * B / Lpp + 0.08) + (0.165 - 0.25 * B / Lpp) / ((525 - 8060 * B / Lpp + 20300 * (B / Lpp) ^ 2) * (0.98 - Cb) ^ 3 + 1) - 0.01 * Fa + 2 * (Diameter / Lpp - 0.04), Add_Inertia=0.3 * Inertia, kwargs...)
   isnothing(name) && throw(ArgumentError("""
     The `name` keyword must be provided. Please consider using the `@named` macro,
     like so:
   
-    @named model = Propeller1Q()
+    @named model = ControllablePitchPropeller()
   """))
 
   __overrides = __build_overrides(kwargs)
@@ -216,6 +223,15 @@ connectors that can be connected together ([`Frame3D`](@ref))
   __local__J_max = J_max
   append!(__params, @parameters (J_max::Real), [description = "Upper clamp on the advance ratio fed to the regression"])
   __initial_conditions[J_max] = __local__J_max
+  __local__P_D_min = P_D_min
+  append!(__params, @parameters (P_D_min::Real), [description = "Lowest pitch ratio (lower end of the regression)"])
+  __initial_conditions[P_D_min] = __local__P_D_min
+  __local__P_D_max = P_D_max
+  append!(__params, @parameters (P_D_max::Real), [description = "Highest pitch ratio (upper end of the regression)"])
+  __initial_conditions[P_D_max] = __local__P_D_max
+  __local__T_pitch = T_pitch
+  append!(__params, @parameters (T_pitch::Real), [description = "Time constant of the pitch mechanism [s]"])
+  __initial_conditions[T_pitch] = __local__T_pitch
 
   ### Final Parameters (assignments)
 
@@ -231,6 +247,8 @@ connectors that can be connected together ([`Frame3D`](@ref))
   append!(__vars, @variables (ShaftPower(t)::Real), [output = true])
   append!(__vars, @variables (ThrustPower(t)::Real), [output = true])
   append!(__vars, @variables (Nu_propulsive(t)::Real), [output = true])
+  append!(__vars, @variables (Pitch_order(t)::Real), [input = true])
+  append!(__vars, @variables (Pitch_ratio(t)::Real), [output = true])
 
   ### Variables (declarations)
   append!(__vars, @variables (pitch_ratio(t)::Real), [description = "Pitch ratio in use; set by the extending component"])
@@ -348,6 +366,7 @@ connectors that can be connected together ([`Frame3D`](@ref))
   isnothing(__ovr_Delta_r__guess) || (__guesses[Delta_r] = __ovr_Delta_r__guess)
 
   ### Initialization Equations
+  push!(__initialization_eqs, pitch_ratio ~ P_D)
 
   ### Assertions
   __assertions = []
@@ -388,10 +407,11 @@ connectors that can be connected together ([`Frame3D`](@ref))
   push!(__eqs, Delta_r ~ 0.15 * Rudder_distance * ((V_inf * r_inf ^ 2 - AdvanceSpeed * r_x ^ 2) / (V_inf * r_inf ^ 2 + AdvanceSpeed * r_x ^ 2)))
   push!(__eqs, Propeller_flow_diameter ~ 2 * (r_x + Delta_r))
   push!(__eqs, Propeller_speed ~ (V_x - AdvanceSpeed) * (r_x ^ 2 / (r_x + Delta_r) ^ 2) + AdvanceSpeed)
-  push!(__eqs, pitch_ratio ~ P_D)
+  push!(__eqs, T_pitch * ModelingToolkit.D_nounits(pitch_ratio) ~ clamp(Pitch_order, P_D_min, P_D_max) - pitch_ratio)
+  push!(__eqs, Pitch_ratio ~ pitch_ratio)
   push!(__eqs, connect(frame_a, apparent.frame_a, force.frame_b, torque.frame_b))
 
   # Return completely constructed System
   return System(__eqs, t, __vars, __params; systems=__systems, initial_conditions=__initial_conditions, guesses=__guesses, name, initialization_eqs=__initialization_eqs, bindings=__bindings, assertions=__assertions)
 end
-export Propeller1Q
+export ControllablePitchPropeller
