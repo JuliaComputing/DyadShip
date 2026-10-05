@@ -164,6 +164,26 @@ inherited hull composes, so its module must import them as well:
 `MultibodyComponents`, `RotationalComponents`, `BlockComponents` and
 `ElectricalComponents`, not only the libraries its own components name.
 
+### A tanker skeleton
+
+`Ship6DOF.TankerSkeleton` puts the pieces of a ship in one assembly: the
+powered hull above with its body reduced to a lightship mass, three cargo
+tanks and two peak ballast tanks (`FuelTank`, used as a liquid mass with no
+flow), two wing ballast tanks joined by the pump-and-valve circuit
+`AntiHeelingCircuit`, a bunker tank drained by the fuel rates of the plant's
+engines, and `DieselMechanicalPlant`. `TankerLaden` and `TankerBallast` are
+two load conditions; the analyses are a speed trial in each and a ballast
+transfer under way. All numbers are synthetic round values on the library's
+100 m sample hull, which is not a tanker hull.
+
+Each tank is a point mass at half the liquid height on the multibody hull,
+so draft, trim and heel follow the loading. The tank models have no free
+surface, no sloshing, no cargo piping and no flooding; the docstring lists
+what each piece can and cannot represent.
+`scripts/validate_tanker_skeleton.jl` checks the mass bookkeeping (the bunker
+tank loses exactly what the engines meter; a ballast transfer conserves
+water), the hydrostatic response and the power bookkeeping.
+
 `Propulsion.SyntheticDieselEngineA` and `SyntheticDieselEngineB` are parameter
 presets of the one `SimpleDieselEngine`: a wrapper without equations holds the
 engine as `core` and loads `assets/presets/Synthetic/diesel_engine_{a,b}.toml`

@@ -5,7 +5,7 @@
 
 
 @doc Markdown.doc"""
-   ManualShip6DOF(; name, U0, J_shaft, rpm_cmd, rudder_cmd, T_rpm, T_rudder)
+   ManualShip6DOF(; name, U0, J_shaft, hull_mass, ini_draft, rpm_cmd, rudder_cmd, T_rpm, T_rudder)
 
 Open-loop, human-controllable 6-DOF ship: the `StandardShip` stack with the
 shaft speed and rudder angle as tunable parameters, each passed through a
@@ -21,6 +21,8 @@ integration steps; also runs as a plain transient. The analysis keeps
 | ------------ | ----------------------------------- | ------ | --------------- |
 | `U0`         | Initial speed along world x                         | m/s  |   0 |
 | `J_shaft`         | Shaft inertia including the propeller and entrained water                         | --  |   4000 |
+| `hull_mass`         | Mass of the hull body [kg]: the design displacement by default; the lightship mass when tanks and loads are added as separate masses                         | kg  |   5681200 |
+| `ini_draft`         | Initial draft [m]                         | m  |   4 |
 | `rpm_cmd`         | Commanded shaft speed [rpm]                         | --  |   60 |
 | `rudder_cmd`         | Commanded rudder angle [deg], positive turns to port                         | --  |   0 |
 | `T_rpm`         | Engine telegraph lag time constant                         | s  |   5 |
@@ -35,7 +37,7 @@ integration steps; also runs as a plain transient. The analysis keeps
 | `rpm_state`         |                          | --  |
 | `rudder_state`         |                          | --  |
 """
-@component function ManualShip6DOF(; name = nothing, U0=Float64(0), J_shaft=Float64(4000), rpm_cmd=Float64(60), rudder_cmd=Float64(0), T_rpm=Float64(5), T_rudder=Float64(1), kwargs...)
+@component function ManualShip6DOF(; name = nothing, U0=Float64(0), J_shaft=Float64(4000), hull_mass=Float64(5681200), ini_draft=Float64(4), rpm_cmd=Float64(60), rudder_cmd=Float64(0), T_rpm=Float64(5), T_rudder=Float64(1), kwargs...)
   isnothing(name) && throw(ArgumentError("""
     The `name` keyword must be provided. Please consider using the `@named` macro,
     like so:
@@ -72,6 +74,12 @@ integration steps; also runs as a plain transient. The analysis keeps
   __local__J_shaft = J_shaft
   append!(__params, @parameters (J_shaft::Real), [description = "Shaft inertia including the propeller and entrained water"])
   __initial_conditions[J_shaft] = __local__J_shaft
+  __local__hull_mass = hull_mass
+  append!(__params, @parameters (hull_mass::Real), [description = "Mass of the hull body [kg]: the design displacement by default; the lightship mass when tanks and loads are added as separate masses", bounds = (0, Inf)])
+  __initial_conditions[hull_mass] = __local__hull_mass
+  __local__ini_draft = ini_draft
+  append!(__params, @parameters (ini_draft::Real), [description = "Initial draft [m]"])
+  __initial_conditions[ini_draft] = __local__ini_draft
   __local__rpm_cmd = rpm_cmd
   append!(__params, @parameters (rpm_cmd::Real), [description = "Commanded shaft speed [rpm]"])
   __initial_conditions[rpm_cmd] = __local__rpm_cmd
@@ -118,7 +126,7 @@ integration steps; also runs as a plain transient. The analysis keeps
   push!(__systems, @named world = MultibodyComponents.World(; n=[Float64(0), Float64(0), Float64(-1)], g=9.80665, render=false, nominal_length=Float64(100), world_overrides...))
   # Subcomponent ship of type DyadShip.Ship6DOF.ShipBody
   ship_overrides = __pop_subcomponent_overrides!(__overrides, "ship")
-  push!(__systems, @named ship = DyadShip.Ship6DOF.ShipBody(; ini_Vel=[U0, Float64(0), Float64(0)], ship_overrides...))
+  push!(__systems, @named ship = DyadShip.Ship6DOF.ShipBody(; mass=hull_mass, ini_Pos=[Float64(0), Float64(0), -ini_draft], ini_Vel=[U0, Float64(0), Float64(0)], ship_overrides...))
   # Subcomponent hydro of type DyadShip.Ship6DOF.HydrodynamicXYY
   hydro_overrides = __pop_subcomponent_overrides!(__overrides, "hydro")
   push!(__systems, @named hydro = DyadShip.Ship6DOF.HydrodynamicXYY(; hydro_overrides...))

@@ -5,29 +5,19 @@
 
 
 @doc Markdown.doc"""
-   FourWingSailsAHCircuit(; name, U0, J_shaft, hull_mass, ini_draft, rpm, sail_angle, wind_speed, wind_direction, r_tank_a, r_tank_b, V_tank, H_tank, fill_start, rho_liquid, T_liquid, Q_nominal, H0, k_pump, m_flow_nominal, dp_nominal, fill_max, fill_min, fill_band, T_valve, T_pump)
+   TankerLadenTrial(; name, U0, J_shaft, hull_mass, ini_draft, r_tank_a, r_tank_b, V_tank, H_tank, fill_start, rho_liquid, T_liquid, Q_nominal, H0, k_pump, m_flow_nominal, dp_nominal, fill_max, fill_min, fill_band, T_valve, T_pump, cargo_mass, peak_ballast_mass, bunker_mass)
 
-`FourWingSails` with the anti-heeling tanks and pumps as an
-`IncompressibleFlowComponents` circuit (`AntiHeelingCircuit`): two open
-tanks on the hull, each liquid also a mass on the hull, joined by two
-antiparallel centrifugal pump and valve branches. The `AntiHeeling`
-controller only requests a transfer rate and a latched direction; the water
-actually moved follows the pump characteristic against the tank level
-difference and the valve losses, and the righting moment comes from the tank
-masses (`apply_moment = false`).
+Speed trial of the laden tanker: constant 80 rpm shaft order, 400 kW hotel demand,
+rudder amidships, no ballast transfer.
 
 ## Parameters:
 
 | Name         | Description                         | Units  |   Default value |
 | ------------ | ----------------------------------- | ------ | --------------- |
-| `U0`         | Initial speed along world x                         | m/s  |   7 |
+| `U0`         | Initial speed along world x                         | m/s  |   5 |
 | `J_shaft`         | Shaft inertia including the propeller and entrained water                         | --  |   4000 |
-| `hull_mass`         | Mass of the hull body [kg]: the design displacement by default; the lightship mass when tanks and loads are added as separate masses                         | kg  |   5681200 |
-| `ini_draft`         | Initial draft [m]                         | m  |   4 |
-| `rpm`         |                          | --  |   100 |
-| `sail_angle`         | Sail angle order [deg]                         | --  |   50 |
-| `wind_speed`         |                          | m/s  |   15 |
-| `wind_direction`         | Direction the wind comes from [deg], 0 = north (+y, the port beam at heading 0)                         | --  |   0 |
+| `hull_mass`         | Mass of the hull body [kg]: the design displacement by default; the lightship mass when tanks and loads are added as separate masses                         | kg  |   2500e3 |
+| `ini_draft`         | Initial draft [m]                         | m  |   3.86 |
 | `r_tank_a`         | Tank A bottom centre in the ship frame                         | m  |   [50, 8, 1] |
 | `r_tank_b`         | Tank B bottom centre in the ship frame                         | m  |   [50, -8, 1] |
 | `V_tank`         | Tank volume [m³]                         | --  |   100 |
@@ -45,6 +35,9 @@ masses (`apply_moment = false`).
 | `fill_band`         | Width of the fill-limit ramp                         | --  |   0.02 |
 | `T_valve`         | Valve actuators: openings ramp at 1/T_valve per second                         | s  |   5 |
 | `T_pump`         | Pump speed ramp: rest to full speed in T_pump seconds                         | s  |   5 |
+| `cargo_mass`         | Liquid mass in each of the three cargo tanks [kg]                         | kg  |   900e3 |
+| `peak_ballast_mass`         | Liquid mass in each of the two peak ballast tanks [kg]                         | kg  |   0 |
+| `bunker_mass`         | Fuel mass in the bunker tank at the start [kg]                         | kg  |   150e3 |
 
 ## Connectors
 
@@ -56,7 +49,7 @@ connectors that can be connected together ([`Frame3D`](@ref))
 | Name         | Description                         | Units  | 
 | ------------ | ----------------------------------- | ------ |
 | `rudder_order`         | Rudder angle order [deg], positive to port                         | --  |
-| `shaft_rpm`         | Shaft speed order [rpm]                         | --  |
+| `service_distance`         | Distance travelled [m]                         | m  |
 | `flow_cmd`         | Requested transfer rate [m³/h], set by the extender                         | --  |
 | `direction`         | +1 transfers A→B, -1 transfers B→A, set by the extender                         | --  |
 | `m_flow_ab`         | Mass flow A→B through the branches [kg/s]                         | --  |
@@ -65,13 +58,15 @@ connectors that can be connected together ([`Frame3D`](@ref))
 | `speed_frac`         |                          | --  |
 | `fill_a`         |                          | --  |
 | `fill_b`         |                          | --  |
+| `liquid_mass`         | Liquid mass in all tanks [kg]                         | kg  |
+| `total_mass`         | Hull body plus all liquids [kg]                         | kg  |
 """
-@component function FourWingSailsAHCircuit(; name = nothing, U0=Float64(7), J_shaft=Float64(4000), hull_mass=Float64(5681200), ini_draft=Float64(4), rpm=Float64(100), sail_angle=Float64(50), wind_speed=Float64(15), wind_direction=Float64(0), r_tank_a=[Float64(50), Float64(8), Float64(1)], r_tank_b=[Float64(50), Float64(-8), Float64(1)], V_tank=Float64(100), H_tank=Float64(5), fill_start=0.45, rho_liquid=Float64(1025), T_liquid=288.15, Q_nominal=Float64(200), H0=Float64(15), k_pump=Float64(3600), m_flow_nominal=Float64(57), dp_nominal=Float64(30000.0), fill_max=0.85, fill_min=0.05, fill_band=0.02, T_valve=Float64(5), T_pump=Float64(5), medium=IncompressibleFlowComponents.Media.ConstantIncompressible(; density=1025.0), kwargs...)
+@component function TankerLadenTrial(; name = nothing, U0=Float64(5), J_shaft=Float64(4000), hull_mass=Float64(2500000.0), ini_draft=3.86, r_tank_a=[Float64(50), Float64(8), Float64(1)], r_tank_b=[Float64(50), Float64(-8), Float64(1)], V_tank=Float64(100), H_tank=Float64(5), fill_start=0.45, rho_liquid=Float64(1025), T_liquid=288.15, Q_nominal=Float64(200), H0=Float64(15), k_pump=Float64(3600), m_flow_nominal=Float64(57), dp_nominal=Float64(30000.0), fill_max=0.85, fill_min=0.05, fill_band=0.02, T_valve=Float64(5), T_pump=Float64(5), cargo_mass=Float64(900000.0), peak_ballast_mass=Float64(0), bunker_mass=Float64(150000.0), medium=IncompressibleFlowComponents.Media.ConstantIncompressible(; density=1025.0), kwargs...)
   isnothing(name) && throw(ArgumentError("""
     The `name` keyword must be provided. Please consider using the `@named` macro,
     like so:
   
-    @named model = FourWingSailsAHCircuit()
+    @named model = TankerLadenTrial()
   """))
 
   __overrides = __build_overrides(kwargs)
@@ -110,18 +105,6 @@ connectors that can be connected together ([`Frame3D`](@ref))
   __local__ini_draft = ini_draft
   append!(__params, @parameters (ini_draft::Real), [description = "Initial draft [m]"])
   __initial_conditions[ini_draft] = __local__ini_draft
-  __local__rpm = rpm
-  append!(__params, @parameters (rpm::Real))
-  __initial_conditions[rpm] = __local__rpm
-  __local__sail_angle = sail_angle
-  append!(__params, @parameters (sail_angle::Real), [description = "Sail angle order [deg]"])
-  __initial_conditions[sail_angle] = __local__sail_angle
-  __local__wind_speed = wind_speed
-  append!(__params, @parameters (wind_speed::Real))
-  __initial_conditions[wind_speed] = __local__wind_speed
-  __local__wind_direction = wind_direction
-  append!(__params, @parameters (wind_direction::Real), [description = "Direction the wind comes from [deg], 0 = north (+y, the port beam at heading 0)"])
-  __initial_conditions[wind_direction] = __local__wind_direction
   __local__r_tank_a = r_tank_a
   append!(__params, @parameters (r_tank_a[1:3]::Real), [description = "Tank A bottom centre in the ship frame"])
   __initial_conditions[r_tank_a] = __local__r_tank_a
@@ -173,6 +156,15 @@ connectors that can be connected together ([`Frame3D`](@ref))
   __local__T_pump = T_pump
   append!(__params, @parameters (T_pump::Real), [description = "Pump speed ramp: rest to full speed in T_pump seconds"])
   __initial_conditions[T_pump] = __local__T_pump
+  __local__cargo_mass = cargo_mass
+  append!(__params, @parameters (cargo_mass::Real), [description = "Liquid mass in each of the three cargo tanks [kg]", bounds = (0, Inf)])
+  __initial_conditions[cargo_mass] = __local__cargo_mass
+  __local__peak_ballast_mass = peak_ballast_mass
+  append!(__params, @parameters (peak_ballast_mass::Real), [description = "Liquid mass in each of the two peak ballast tanks [kg]", bounds = (0, Inf)])
+  __initial_conditions[peak_ballast_mass] = __local__peak_ballast_mass
+  __local__bunker_mass = bunker_mass
+  append!(__params, @parameters (bunker_mass::Real), [description = "Fuel mass in the bunker tank at the start [kg]", bounds = (0, Inf)])
+  __initial_conditions[bunker_mass] = __local__bunker_mass
 
   ### Final Parameters (assignments)
 
@@ -180,7 +172,7 @@ connectors that can be connected together ([`Frame3D`](@ref))
 
   ### Variables (declarations)
   append!(__vars, @variables (rudder_order(t)::Real), [description = "Rudder angle order [deg], positive to port"])
-  append!(__vars, @variables (shaft_rpm(t)::Real), [description = "Shaft speed order [rpm]"])
+  append!(__vars, @variables (service_distance(t)::Real), [description = "Distance travelled [m]"])
   append!(__vars, @variables (flow_cmd(t)::Real), [description = "Requested transfer rate [m³/h], set by the extender"])
   append!(__vars, @variables (direction(t)::Real), [description = "+1 transfers A→B, -1 transfers B→A, set by the extender"])
   append!(__vars, @variables (m_flow_ab(t)::Real), [description = "Mass flow A→B through the branches [kg/s]"])
@@ -189,14 +181,16 @@ connectors that can be connected together ([`Frame3D`](@ref))
   append!(__vars, @variables (speed_frac(t)::Real))
   append!(__vars, @variables (fill_a(t)::Real))
   append!(__vars, @variables (fill_b(t)::Real))
+  append!(__vars, @variables (liquid_mass(t)::Real), [description = "Liquid mass in all tanks [kg]"])
+  append!(__vars, @variables (total_mass(t)::Real), [description = "Hull body plus all liquids [kg]"])
 
   ### Variables (assignments)
   __ovr_rudder_order = pop!(__overrides, "rudder_order", nothing); isnothing(__ovr_rudder_order) || push!(__eqs, rudder_order ~ __ovr_rudder_order)
   __ovr_rudder_order__initial = pop!(__overrides, "rudder_order__initial", nothing); isnothing(__ovr_rudder_order__initial) || (__initial_conditions[rudder_order] = __ovr_rudder_order__initial)
   __ovr_rudder_order__guess = pop!(__overrides, "rudder_order__guess", nothing)
-  __ovr_shaft_rpm = pop!(__overrides, "shaft_rpm", nothing); isnothing(__ovr_shaft_rpm) || push!(__eqs, shaft_rpm ~ __ovr_shaft_rpm)
-  __ovr_shaft_rpm__initial = pop!(__overrides, "shaft_rpm__initial", nothing); isnothing(__ovr_shaft_rpm__initial) || (__initial_conditions[shaft_rpm] = __ovr_shaft_rpm__initial)
-  __ovr_shaft_rpm__guess = pop!(__overrides, "shaft_rpm__guess", nothing)
+  __ovr_service_distance = pop!(__overrides, "service_distance", nothing); isnothing(__ovr_service_distance) || push!(__eqs, service_distance ~ __ovr_service_distance)
+  __ovr_service_distance__initial = pop!(__overrides, "service_distance__initial", nothing); isnothing(__ovr_service_distance__initial) || (__initial_conditions[service_distance] = __ovr_service_distance__initial)
+  __ovr_service_distance__guess = pop!(__overrides, "service_distance__guess", nothing)
   __ovr_flow_cmd = pop!(__overrides, "flow_cmd", nothing); isnothing(__ovr_flow_cmd) || push!(__eqs, flow_cmd ~ __ovr_flow_cmd)
   __ovr_flow_cmd__initial = pop!(__overrides, "flow_cmd__initial", nothing); isnothing(__ovr_flow_cmd__initial) || (__initial_conditions[flow_cmd] = __ovr_flow_cmd__initial)
   __ovr_flow_cmd__guess = pop!(__overrides, "flow_cmd__guess", nothing)
@@ -221,6 +215,12 @@ connectors that can be connected together ([`Frame3D`](@ref))
   __ovr_fill_b = pop!(__overrides, "fill_b", nothing); isnothing(__ovr_fill_b) || push!(__eqs, fill_b ~ __ovr_fill_b)
   __ovr_fill_b__initial = pop!(__overrides, "fill_b__initial", nothing); isnothing(__ovr_fill_b__initial) || (__initial_conditions[fill_b] = __ovr_fill_b__initial)
   __ovr_fill_b__guess = pop!(__overrides, "fill_b__guess", nothing)
+  __ovr_liquid_mass = pop!(__overrides, "liquid_mass", nothing); isnothing(__ovr_liquid_mass) || push!(__eqs, liquid_mass ~ __ovr_liquid_mass)
+  __ovr_liquid_mass__initial = pop!(__overrides, "liquid_mass__initial", nothing); isnothing(__ovr_liquid_mass__initial) || (__initial_conditions[liquid_mass] = __ovr_liquid_mass__initial)
+  __ovr_liquid_mass__guess = pop!(__overrides, "liquid_mass__guess", nothing)
+  __ovr_total_mass = pop!(__overrides, "total_mass", nothing); isnothing(__ovr_total_mass) || push!(__eqs, total_mass ~ __ovr_total_mass)
+  __ovr_total_mass__initial = pop!(__overrides, "total_mass__initial", nothing); isnothing(__ovr_total_mass__initial) || (__initial_conditions[total_mass] = __ovr_total_mass__initial)
+  __ovr_total_mass__guess = pop!(__overrides, "total_mass__guess", nothing)
 
   ### Constants
   __constants = Any[]
@@ -254,45 +254,6 @@ connectors that can be connected together ([`Frame3D`](@ref))
   # Subcomponent rudder of type DyadShip.Ship6DOF.Rudder
   rudder_overrides = __pop_subcomponent_overrides!(__overrides, "rudder")
   push!(__systems, @named rudder = DyadShip.Ship6DOF.Rudder(; rudder_overrides...))
-  # Subcomponent governor of type RotationalComponents.Sources.VelocitySource
-  governor_overrides = __pop_subcomponent_overrides!(__overrides, "governor")
-  push!(__systems, @named governor = RotationalComponents.Sources.VelocitySource(; governor_overrides...))
-  # Subcomponent ground of type RotationalComponents.Components.Fixed
-  ground_overrides = __pop_subcomponent_overrides!(__overrides, "ground")
-  push!(__systems, @named ground = RotationalComponents.Components.Fixed(; ground_overrides...))
-  # Subcomponent env of type DyadShip.Environment
-  env_overrides = __pop_subcomponent_overrides!(__overrides, "env")
-  push!(__systems, @named env = DyadShip.Environment(; WindSpeed=wind_speed, WindDirection=wind_direction, env_overrides...))
-  # Subcomponent wind of type DyadShip.Ship6DOF.ShipWind
-  wind_overrides = __pop_subcomponent_overrides!(__overrides, "wind")
-  push!(__systems, @named wind = DyadShip.Ship6DOF.ShipWind(; wind_overrides...))
-  # Subcomponent pilot of type DyadShip.Ship6DOF.WaypointAutopilot
-  pilot_overrides = __pop_subcomponent_overrides!(__overrides, "pilot")
-  push!(__systems, @named pilot = DyadShip.Ship6DOF.WaypointAutopilot(; Throttle_full_dist=Float64(2000), Throttle_off_dist=Float64(1000), pilot_overrides...))
-  # Subcomponent sail_pos1 of type MultibodyComponents.FixedTranslation
-  sail_pos1_overrides = __pop_subcomponent_overrides!(__overrides, "sail_pos1")
-  push!(__systems, @named sail_pos1 = MultibodyComponents.FixedTranslation(; r=[Float64(20), Float64(0), Float64(18)], render=false, sail_pos1_overrides...))
-  # Subcomponent sail_pos2 of type MultibodyComponents.FixedTranslation
-  sail_pos2_overrides = __pop_subcomponent_overrides!(__overrides, "sail_pos2")
-  push!(__systems, @named sail_pos2 = MultibodyComponents.FixedTranslation(; r=[Float64(40), Float64(0), Float64(18)], render=false, sail_pos2_overrides...))
-  # Subcomponent sail_pos3 of type MultibodyComponents.FixedTranslation
-  sail_pos3_overrides = __pop_subcomponent_overrides!(__overrides, "sail_pos3")
-  push!(__systems, @named sail_pos3 = MultibodyComponents.FixedTranslation(; r=[Float64(60), Float64(0), Float64(18)], render=false, sail_pos3_overrides...))
-  # Subcomponent sail_pos4 of type MultibodyComponents.FixedTranslation
-  sail_pos4_overrides = __pop_subcomponent_overrides!(__overrides, "sail_pos4")
-  push!(__systems, @named sail_pos4 = MultibodyComponents.FixedTranslation(; r=[Float64(80), Float64(0), Float64(18)], render=false, sail_pos4_overrides...))
-  # Subcomponent sail1 of type DyadShip.Ship6DOF.WingSail
-  sail1_overrides = __pop_subcomponent_overrides!(__overrides, "sail1")
-  push!(__systems, @named sail1 = DyadShip.Ship6DOF.WingSail(; sail1_overrides...))
-  # Subcomponent sail2 of type DyadShip.Ship6DOF.WingSail
-  sail2_overrides = __pop_subcomponent_overrides!(__overrides, "sail2")
-  push!(__systems, @named sail2 = DyadShip.Ship6DOF.WingSail(; sail2_overrides...))
-  # Subcomponent sail3 of type DyadShip.Ship6DOF.WingSail
-  sail3_overrides = __pop_subcomponent_overrides!(__overrides, "sail3")
-  push!(__systems, @named sail3 = DyadShip.Ship6DOF.WingSail(; sail3_overrides...))
-  # Subcomponent sail4 of type DyadShip.Ship6DOF.WingSail
-  sail4_overrides = __pop_subcomponent_overrides!(__overrides, "sail4")
-  push!(__systems, @named sail4 = DyadShip.Ship6DOF.WingSail(; sail4_overrides...))
   # Subcomponent tank_a of type IncompressibleFlowComponents.Volumes.OpenTank_2Port
   tank_a_overrides = __pop_subcomponent_overrides!(__overrides, "tank_a")
   push!(__systems, @named tank_a = IncompressibleFlowComponents.Volumes.OpenTank_2Port(; height=H_tank, A_cross=V_tank / H_tank, p_ambient=Float64(101325), T_start=T_liquid, level_start=fill_start * H_tank, continuity__graph0=medium, tank_a_overrides...))
@@ -329,16 +290,34 @@ connectors that can be connected together ([`Frame3D`](@ref))
   # Subcomponent spd_ba of type BlockComponents.Nonlinear.SlewRateLimiter
   spd_ba_overrides = __pop_subcomponent_overrides!(__overrides, "spd_ba")
   push!(__systems, @named spd_ba = BlockComponents.Nonlinear.SlewRateLimiter(; rising=1 / T_pump, td=0.05, spd_ba_overrides...))
-  # Subcomponent antiheeling of type DyadShip.Ship6DOF.AntiHeeling
-  antiheeling_overrides = __pop_subcomponent_overrides!(__overrides, "antiheeling")
-  push!(__systems, @named antiheeling = DyadShip.Ship6DOF.AntiHeeling(; B=Float64(20), b=Float64(4), V_tk=Float64(100), startup_delay=Float64(300), apply_moment=false, antiheeling_overrides...))
+  # Subcomponent cargo_1 of type DyadShip.Ship6DOF.FuelTank
+  cargo_1_overrides = __pop_subcomponent_overrides!(__overrides, "cargo_1")
+  push!(__systems, @named cargo_1 = DyadShip.Ship6DOF.FuelTank(; r_tank=[Float64(30), Float64(0), 1.5], m0=cargo_mass, rho=Float64(850), A_tank=Float64(192), H=Float64(6), cargo_1_overrides...))
+  # Subcomponent cargo_2 of type DyadShip.Ship6DOF.FuelTank
+  cargo_2_overrides = __pop_subcomponent_overrides!(__overrides, "cargo_2")
+  push!(__systems, @named cargo_2 = DyadShip.Ship6DOF.FuelTank(; r_tank=[Float64(50), Float64(0), 1.5], m0=cargo_mass, rho=Float64(850), A_tank=Float64(192), H=Float64(6), cargo_2_overrides...))
+  # Subcomponent cargo_3 of type DyadShip.Ship6DOF.FuelTank
+  cargo_3_overrides = __pop_subcomponent_overrides!(__overrides, "cargo_3")
+  push!(__systems, @named cargo_3 = DyadShip.Ship6DOF.FuelTank(; r_tank=[Float64(70), Float64(0), 1.5], m0=cargo_mass, rho=Float64(850), A_tank=Float64(192), H=Float64(6), cargo_3_overrides...))
+  # Subcomponent fore_peak of type DyadShip.Ship6DOF.FuelTank
+  fore_peak_overrides = __pop_subcomponent_overrides!(__overrides, "fore_peak")
+  push!(__systems, @named fore_peak = DyadShip.Ship6DOF.FuelTank(; r_tank=[Float64(92), Float64(0), Float64(1)], m0=peak_ballast_mass, rho=Float64(1025), A_tank=Float64(120), H=Float64(6), fore_peak_overrides...))
+  # Subcomponent aft_peak of type DyadShip.Ship6DOF.FuelTank
+  aft_peak_overrides = __pop_subcomponent_overrides!(__overrides, "aft_peak")
+  push!(__systems, @named aft_peak = DyadShip.Ship6DOF.FuelTank(; r_tank=[Float64(8), Float64(0), Float64(1)], m0=peak_ballast_mass, rho=Float64(1025), A_tank=Float64(120), H=Float64(6), aft_peak_overrides...))
+  # Subcomponent bunker of type DyadShip.Ship6DOF.FuelTank
+  bunker_overrides = __pop_subcomponent_overrides!(__overrides, "bunker")
+  push!(__systems, @named bunker = DyadShip.Ship6DOF.FuelTank(; r_tank=[Float64(18), Float64(0), Float64(1)], m0=bunker_mass, rho=Float64(900), A_tank=Float64(50), H=Float64(4), bunker_overrides...))
+  # Subcomponent plant of type DyadShip.Ship6DOF.DieselMechanicalPlant
+  plant_overrides = __pop_subcomponent_overrides!(__overrides, "plant")
+  push!(__systems, @named plant = DyadShip.Ship6DOF.DieselMechanicalPlant(; plant_overrides...))
 
   ### Check there are no unmatched overrides
   isempty(__overrides) || throw(ArgumentError("overrides: [$(join(keys(__overrides), ", "))] don't match names found in model. These names may exist in the model but could have been conditionally excluded."))
 
   ### Guesses
   isnothing(__ovr_rudder_order__guess) || (__guesses[rudder_order] = __ovr_rudder_order__guess)
-  isnothing(__ovr_shaft_rpm__guess) || (__guesses[shaft_rpm] = __ovr_shaft_rpm__guess)
+  isnothing(__ovr_service_distance__guess) || (__guesses[service_distance] = __ovr_service_distance__guess)
   isnothing(__ovr_flow_cmd__guess) || (__guesses[flow_cmd] = __ovr_flow_cmd__guess)
   isnothing(__ovr_direction__guess) || (__guesses[direction] = __ovr_direction__guess)
   isnothing(__ovr_m_flow_ab__guess) || (__guesses[m_flow_ab] = __ovr_m_flow_ab__guess)
@@ -347,9 +326,11 @@ connectors that can be connected together ([`Frame3D`](@ref))
   isnothing(__ovr_speed_frac__guess) || (__guesses[speed_frac] = __ovr_speed_frac__guess)
   isnothing(__ovr_fill_a__guess) || (__guesses[fill_a] = __ovr_fill_a__guess)
   isnothing(__ovr_fill_b__guess) || (__guesses[fill_b] = __ovr_fill_b__guess)
+  isnothing(__ovr_liquid_mass__guess) || (__guesses[liquid_mass] = __ovr_liquid_mass__guess)
+  isnothing(__ovr_total_mass__guess) || (__guesses[total_mass] = __ovr_total_mass__guess)
 
   ### Initialization Equations
-  push!(__initialization_eqs, shaft.phi ~ 0)
+  push!(__initialization_eqs, service_distance ~ 0)
 
   ### Assertions
   __assertions = []
@@ -362,28 +343,7 @@ connectors that can be connected together ([`Frame3D`](@ref))
   push!(__eqs, rudder.Current_x ~ 0)
   push!(__eqs, rudder.Current_y ~ 0)
   push!(__eqs, rudder.Rudder_Order ~ rudder_order)
-  push!(__eqs, governor.w_ref ~ shaft_rpm * π / 30)
-  push!(__eqs, wind.Wind_x ~ getindex(getproperty(env, :WindVector), 1))
-  push!(__eqs, wind.Wind_y ~ getindex(getproperty(env, :WindVector), 2))
-  push!(__eqs, sail1.Wind_x ~ getindex(getproperty(env, :WindVector), 1))
-  push!(__eqs, sail1.Wind_y ~ getindex(getproperty(env, :WindVector), 2))
-  push!(__eqs, sail2.Wind_x ~ getindex(getproperty(env, :WindVector), 1))
-  push!(__eqs, sail2.Wind_y ~ getindex(getproperty(env, :WindVector), 2))
-  push!(__eqs, sail3.Wind_x ~ getindex(getproperty(env, :WindVector), 1))
-  push!(__eqs, sail3.Wind_y ~ getindex(getproperty(env, :WindVector), 2))
-  push!(__eqs, sail4.Wind_x ~ getindex(getproperty(env, :WindVector), 1))
-  push!(__eqs, sail4.Wind_y ~ getindex(getproperty(env, :WindVector), 2))
-  push!(__eqs, sail1.Sail_Order ~ sail_angle)
-  push!(__eqs, sail2.Sail_Order ~ sail_angle)
-  push!(__eqs, sail3.Sail_Order ~ sail_angle)
-  push!(__eqs, sail4.Sail_Order ~ sail_angle)
-  push!(__eqs, pilot.pos_x ~ ship.pos_x)
-  push!(__eqs, pilot.pos_y ~ ship.pos_y)
-  push!(__eqs, pilot.psi ~ ship.Yaw)
-  push!(__eqs, pilot.target_x ~ 100000.0)
-  push!(__eqs, pilot.target_y ~ 0)
-  push!(__eqs, rudder_order ~ pilot.rudder)
-  push!(__eqs, shaft_rpm ~ rpm)
+  push!(__eqs, ModelingToolkit.D_nounits(service_distance) ~ ship.Surge)
   push!(__eqs, mass_a.volume ~ tank_a.fluidVolume)
   push!(__eqs, mass_a.level ~ tank_a.level)
   push!(__eqs, mass_b.volume ~ tank_b.fluidVolume)
@@ -402,9 +362,19 @@ connectors that can be connected together ([`Frame3D`](@ref))
   push!(__eqs, valve_ab.opening ~ act_ab.y)
   push!(__eqs, valve_ba.opening ~ act_ba.y)
   push!(__eqs, m_flow_ab ~ pump_ab.m_flow - pump_ba.m_flow)
-  push!(__eqs, antiheeling.ship_heel ~ ship.Heel * 180 / π)
-  push!(__eqs, flow_cmd ~ antiheeling.pump_flow)
-  push!(__eqs, direction ~ antiheeling.direction)
+  push!(__eqs, cargo_1.Fuel_rate ~ 0)
+  push!(__eqs, cargo_2.Fuel_rate ~ 0)
+  push!(__eqs, cargo_3.Fuel_rate ~ 0)
+  push!(__eqs, fore_peak.Fuel_rate ~ 0)
+  push!(__eqs, aft_peak.Fuel_rate ~ 0)
+  push!(__eqs, bunker.Fuel_rate ~ plant.main_engine_fuel_mass_rate + plant.genset_fuel_mass_rate)
+  push!(__eqs, liquid_mass ~ cargo_1.mass + cargo_2.mass + cargo_3.mass + fore_peak.mass + aft_peak.mass + bunker.mass + mass_a.mass + mass_b.mass)
+  push!(__eqs, total_mass ~ hull_mass + liquid_mass)
+  push!(__eqs, plant.shaft_speed_order ~ 80)
+  push!(__eqs, plant.hotel_power_demand ~ 400000.0)
+  push!(__eqs, rudder_order ~ 0)
+  push!(__eqs, flow_cmd ~ 0)
+  push!(__eqs, direction ~ 1)
   push!(__eqs, connect(ship.frame_a, hydro.frame_a, zrp.frame_a, prop_mount.frame_a, rudder_mount.frame_a))
   push!(__eqs, connect(prop_mount.frame_b, prop.frame_a))
   push!(__eqs, connect(rudder_mount.frame_b, rudder.frame_a))
@@ -416,21 +386,15 @@ connectors that can be connected together ([`Frame3D`](@ref))
   push!(__eqs, connect(prop.Propeller_flow_diameter, rudder.Propeller_flow_diameter))
   push!(__eqs, connect(prop.Wake_Fraction, rudder.Wake_Fraction))
   push!(__eqs, connect(shaft.spline_b, prop.flange))
-  push!(__eqs, connect(governor.support, ground.spline))
-  push!(__eqs, connect(governor.spline, shaft.spline_a))
-  push!(__eqs, connect(ship.frame_a, wind.frame_a, sail_pos1.frame_a, sail_pos2.frame_a, sail_pos3.frame_a, sail_pos4.frame_a))
-  push!(__eqs, connect(sail_pos1.frame_b, sail1.frame_a))
-  push!(__eqs, connect(sail_pos2.frame_b, sail2.frame_a))
-  push!(__eqs, connect(sail_pos3.frame_b, sail3.frame_a))
-  push!(__eqs, connect(sail_pos4.frame_b, sail4.frame_a))
   push!(__eqs, connect(tank_a.port1, pump_ab.port_a, valve_ba.port_b))
   push!(__eqs, connect(tank_b.port1, pump_ba.port_a, valve_ab.port_b))
   push!(__eqs, connect(pump_ab.port_b, valve_ab.port_a))
   push!(__eqs, connect(pump_ba.port_b, valve_ba.port_a))
   push!(__eqs, connect(hull, mass_a.frame_a, mass_b.frame_a))
-  push!(__eqs, connect(ship.frame_a, antiheeling.frame_a, hull))
+  push!(__eqs, connect(ship.frame_a, cargo_1.frame_a, cargo_2.frame_a, cargo_3.frame_a, fore_peak.frame_a, aft_peak.frame_a, bunker.frame_a, hull))
+  push!(__eqs, connect(plant.propeller_flange, shaft.spline_a))
 
   # Return completely constructed System
   return System(__eqs, t, __vars, __params; systems=__systems, initial_conditions=__initial_conditions, guesses=__guesses, name, initialization_eqs=__initialization_eqs, bindings=__bindings, assertions=__assertions)
 end
-export FourWingSailsAHCircuit
+export TankerLadenTrial

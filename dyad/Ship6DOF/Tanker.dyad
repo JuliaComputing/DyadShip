@@ -1,0 +1,144 @@
+"""
+Skeleton of a small tanker: how the hull, the tanks, the ballast circuit, the power
+plant, the propeller and the rudder of this library come together in one ship.
+
+It is `PoweredSingleScrewShip` (sample hull, hydrodynamics, propeller, rudder, free
+propeller shaft) with the hull body reduced to a lightship mass, plus:
+
+| Member | Component | What it is here |
+|---|---|---|
+| `cargo_1`, `cargo_2`, `cargo_3` | `FuelTank` | three centre cargo tanks, liquid mass `cargo_mass` each, no flow |
+| `fore_peak`, `aft_peak` | `FuelTank` | two ballast tanks, liquid mass `peak_ballast_mass` each, no flow |
+| `tank_a`, `tank_b`, pumps, valves | `AntiHeelingCircuit` | two wing ballast tanks (port, starboard) joined by a pump-and-valve circuit; `flow_cmd` and `direction` are set by the extender |
+| `bunker` | `FuelTank` | fuel tank drained by the fuel rates of the plant's engines |
+| `plant` | `DieselMechanicalPlant` | main engine through a gear to the propeller, generating set and hotel load on a bus |
+
+Every tank is a `VariableMass` on the hull: its liquid adds weight, inertia and the lever
+arm of its centre (at half the liquid height) to the multibody hull, so draft, trim and
+heel follow the loading. `liquid_mass` is the sum over all tanks and `total_mass` adds
+the hull body.
+
+What the tank models cannot represent: a free surface (the liquid does not shift when
+the ship heels, so there is no free-surface loss of stability), sloshing, tank shapes
+other than a prism, pressure or temperature of the cargo, cargo pumping (the cargo and
+peak tanks have no pipes; their rate input is held at zero) and flooding of a
+compartment. Compartments that are not tanks would be further `VariableMass` or `Body`
+elements on the same frame.
+
+**Synthetic.** The hull is the library's 100 m sample hull, not a tanker hull; the
+lightship mass, tank positions, sizes and fillings are round numbers chosen so that the
+loaded ship floats near the sample hull's design draft. Extending components set the
+orders: `plant.shaft_speed_order`, `plant.hotel_power_demand`, `rudder_order`,
+`flow_cmd` [m³/h] and `direction` (+1 port to starboard, -1 the reverse).
+"""
+partial component TankerSkeleton
+  extends PoweredSingleScrewShip
+  extends AntiHeelingCircuit
+  "Liquid mass in each of the three cargo tanks [kg]"
+  parameter cargo_mass::Mass = 900e3
+  "Liquid mass in each of the two peak ballast tanks [kg]"
+  parameter peak_ballast_mass::Mass = 0
+  "Fuel mass in the bunker tank at the start [kg]"
+  parameter bunker_mass::Mass = 150e3
+  cargo_1 = FuelTank(r_tank = [30, 0, 1.5], m0 = cargo_mass, rho = 850, A_tank = 192, H = 6)
+  cargo_2 = FuelTank(r_tank = [50, 0, 1.5], m0 = cargo_mass, rho = 850, A_tank = 192, H = 6)
+  cargo_3 = FuelTank(r_tank = [70, 0, 1.5], m0 = cargo_mass, rho = 850, A_tank = 192, H = 6)
+  fore_peak = FuelTank(r_tank = [92, 0, 1], m0 = peak_ballast_mass, rho = 1025, A_tank = 120, H = 6)
+  aft_peak = FuelTank(r_tank = [8, 0, 1], m0 = peak_ballast_mass, rho = 1025, A_tank = 120, H = 6)
+  bunker = FuelTank(r_tank = [18, 0, 1], m0 = bunker_mass, rho = 900, A_tank = 50, H = 4)
+  plant = DieselMechanicalPlant()
+  "Liquid mass in all tanks [kg]"
+  variable liquid_mass::Mass
+  "Hull body plus all liquids [kg]"
+  variable total_mass::Mass
+relations
+  connect(ship.frame_a, cargo_1.frame_a, cargo_2.frame_a, cargo_3.frame_a, fore_peak.frame_a, aft_peak.frame_a, bunker.frame_a, hull)
+  connect(plant.propeller_flange, shaft.spline_a)
+  cargo_1.Fuel_rate = 0
+  cargo_2.Fuel_rate = 0
+  cargo_3.Fuel_rate = 0
+  fore_peak.Fuel_rate = 0
+  aft_peak.Fuel_rate = 0
+  bunker.Fuel_rate = plant.main_engine_fuel_mass_rate + plant.genset_fuel_mass_rate
+  liquid_mass = cargo_1.mass + cargo_2.mass + cargo_3.mass + fore_peak.mass + aft_peak.mass + bunker.mass + mass_a.mass + mass_b.mass
+  total_mass = hull_mass + liquid_mass
+end
+
+"""
+Laden condition of the tanker skeleton (synthetic round numbers): lightship 2500 t,
+three cargo tanks at 900 t each (92 % full at 850 kg/m³), peak ballast tanks empty, wing
+ballast tanks 45 % full (46 t each), 150 t of fuel. Total 5442 t, which the sample
+hull's hydrostatics carry at a draft of about 3.86 m.
+"""
+partial component TankerLaden
+  extends TankerSkeleton(hull_mass = 2500e3, cargo_mass = 900e3, peak_ballast_mass = 0, ini_draft = 3.86)
+end
+
+"""
+Ballast condition of the tanker skeleton (synthetic round numbers): lightship 2500 t,
+cargo tanks at 20 t each (residue), peak ballast tanks at 700 t each (95 % full), wing
+ballast tanks 45 % full, 150 t of fuel. Total 4202 t, a draft of about 3.05 m.
+"""
+partial component TankerBallast
+  extends TankerSkeleton(hull_mass = 2500e3, cargo_mass = 20e3, peak_ballast_mass = 700e3, ini_draft = 3.05)
+end
+
+"""
+Speed trial of the laden tanker: constant 80 rpm shaft order, 400 kW hotel demand,
+rudder amidships, no ballast transfer.
+"""
+test component TankerLadenTrial
+  extends TankerLaden(U0 = 5)
+relations
+  plant.shaft_speed_order = 80
+  plant.hotel_power_demand = 400e3
+  rudder_order = 0
+  flow_cmd = 0
+  direction = 1
+end
+
+analysis TankerLadenTrialTransient
+  extends TransientAnalysis(stop = 600.0)
+  model = TankerLadenTrial()
+end
+
+"""
+The same speed trial in the ballast condition.
+"""
+test component TankerBallastTrial
+  extends TankerBallast(U0 = 5)
+relations
+  plant.shaft_speed_order = 80
+  plant.hotel_power_demand = 400e3
+  rudder_order = 0
+  flow_cmd = 0
+  direction = 1
+end
+
+analysis TankerBallastTrialTransient
+  extends TransientAnalysis(stop = 600.0)
+  model = TankerBallastTrial()
+end
+
+"""
+Ballast transfer under way in the ballast condition: between `t_on` and `t_off` the
+circuit pumps from the port wing tank to the starboard one at the pump's nominal rate.
+The water moved follows the pump characteristic and the valve losses; the ship heels
+towards the tank that fills, and the total liquid mass changes only by the fuel burnt.
+"""
+test component TankerBallastTransfer
+  extends TankerBallast(U0 = 5)
+  parameter t_on::Time = 100
+  parameter t_off::Time = 400
+relations
+  plant.shaft_speed_order = 80
+  plant.hotel_power_demand = 400e3
+  rudder_order = 0
+  flow_cmd = ifelse(time > t_on, ifelse(time < t_off, 200, 0), 0)
+  direction = 1
+end
+
+analysis TankerBallastTransferTransient
+  extends TransientAnalysis(stop = 900.0, tstops = [100.0, 400.0])
+  model = TankerBallastTransfer()
+end

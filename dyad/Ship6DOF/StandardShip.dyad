@@ -21,8 +21,12 @@ partial component SingleScrewHull
   parameter U0::Velocity = 6.69
   "Shaft inertia including the propeller and entrained water"
   parameter J_shaft::Real = 4000
+  "Mass of the hull body [kg]: the design displacement by default; the lightship mass when tanks and loads are added as separate masses"
+  parameter hull_mass::Mass = 5681200
+  "Initial draft [m]"
+  parameter ini_draft::Length = 4
   world = MultibodyComponents.World(n = [0, 0, -1], g = 9.80665, render = false, nominal_length = 100)
-  ship = ShipBody(ini_Vel = [U0, 0, 0])
+  ship = ShipBody(mass = hull_mass, ini_Pos = [0, 0, -ini_draft], ini_Vel = [U0, 0, 0])
   hydro = HydrodynamicXYY()
   zrp = HydrodynamicZRP()
   prop_mount = MultibodyComponents.FixedTranslation(r = [1, 0, 2], render = false)

@@ -5,7 +5,7 @@
 
 
 @doc Markdown.doc"""
-   FullShip6DOF(; name, U0, J_shaft, target_x, target_y, rpm_full, wind_speed, wind_direction)
+   FullShip6DOF(; name, U0, J_shaft, hull_mass, ini_draft, target_x, target_y, rpm_full, wind_speed, wind_direction)
 
 Closed-loop 6-DOF transit under wind: the `StandardShip` stack steered by
 `WaypointAutopilot` towards a waypoint, with `ShipWind` superstructure loads
@@ -22,6 +22,8 @@ autopilot must counter with a rudder offset and a small steady heel.
 | ------------ | ----------------------------------- | ------ | --------------- |
 | `U0`         | Initial speed along world x                         | m/s  |   5 |
 | `J_shaft`         | Shaft inertia including the propeller and entrained water                         | --  |   4000 |
+| `hull_mass`         | Mass of the hull body [kg]: the design displacement by default; the lightship mass when tanks and loads are added as separate masses                         | kg  |   5681200 |
+| `ini_draft`         | Initial draft [m]                         | m  |   4 |
 | `target_x`         |                          | m  |   10000 |
 | `target_y`         |                          | m  |   1000 |
 | `rpm_full`         | Shaft speed at full throttle [rpm]                         | --  |   100 |
@@ -35,7 +37,7 @@ autopilot must counter with a rudder offset and a small steady heel.
 | `rudder_order`         | Rudder angle order [deg], positive to port                         | --  |
 | `shaft_rpm`         | Shaft speed order [rpm]                         | --  |
 """
-@component function FullShip6DOF(; name = nothing, U0=Float64(5), J_shaft=Float64(4000), target_x=Float64(10000), target_y=Float64(1000), rpm_full=Float64(100), wind_speed=Float64(10), wind_direction=Float64(45), kwargs...)
+@component function FullShip6DOF(; name = nothing, U0=Float64(5), J_shaft=Float64(4000), hull_mass=Float64(5681200), ini_draft=Float64(4), target_x=Float64(10000), target_y=Float64(1000), rpm_full=Float64(100), wind_speed=Float64(10), wind_direction=Float64(45), kwargs...)
   isnothing(name) && throw(ArgumentError("""
     The `name` keyword must be provided. Please consider using the `@named` macro,
     like so:
@@ -72,6 +74,12 @@ autopilot must counter with a rudder offset and a small steady heel.
   __local__J_shaft = J_shaft
   append!(__params, @parameters (J_shaft::Real), [description = "Shaft inertia including the propeller and entrained water"])
   __initial_conditions[J_shaft] = __local__J_shaft
+  __local__hull_mass = hull_mass
+  append!(__params, @parameters (hull_mass::Real), [description = "Mass of the hull body [kg]: the design displacement by default; the lightship mass when tanks and loads are added as separate masses", bounds = (0, Inf)])
+  __initial_conditions[hull_mass] = __local__hull_mass
+  __local__ini_draft = ini_draft
+  append!(__params, @parameters (ini_draft::Real), [description = "Initial draft [m]"])
+  __initial_conditions[ini_draft] = __local__ini_draft
   __local__target_x = target_x
   append!(__params, @parameters (target_x::Real))
   __initial_conditions[target_x] = __local__target_x
@@ -113,7 +121,7 @@ autopilot must counter with a rudder offset and a small steady heel.
   push!(__systems, @named world = MultibodyComponents.World(; n=[Float64(0), Float64(0), Float64(-1)], g=9.80665, render=false, nominal_length=Float64(100), world_overrides...))
   # Subcomponent ship of type DyadShip.Ship6DOF.ShipBody
   ship_overrides = __pop_subcomponent_overrides!(__overrides, "ship")
-  push!(__systems, @named ship = DyadShip.Ship6DOF.ShipBody(; ini_Vel=[U0, Float64(0), Float64(0)], ship_overrides...))
+  push!(__systems, @named ship = DyadShip.Ship6DOF.ShipBody(; mass=hull_mass, ini_Pos=[Float64(0), Float64(0), -ini_draft], ini_Vel=[U0, Float64(0), Float64(0)], ship_overrides...))
   # Subcomponent hydro of type DyadShip.Ship6DOF.HydrodynamicXYY
   hydro_overrides = __pop_subcomponent_overrides!(__overrides, "hydro")
   push!(__systems, @named hydro = DyadShip.Ship6DOF.HydrodynamicXYY(; hydro_overrides...))
