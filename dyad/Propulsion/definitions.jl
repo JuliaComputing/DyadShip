@@ -87,3 +87,16 @@ end
 @register_symbolic table_knots_valid(xs::AbstractVector)
 @register_symbolic table_values_valid(ys::AbstractVector)
 @register_symbolic rate_valid(x::Real)
+
+"""
+    StepAtRisingCrossing(; name)
+
+System behind the Dyad component of the same name: one input `u` and a continuous event
+on `u ~ 0` with an empty action on the rising edge and none on the falling edge, which
+makes the solver locate a rising crossing and end a step there.
+"""
+function StepAtRisingCrossing(; name, kwargs...)
+    vars = @variables u(t) [input = true]
+    event = ModelingToolkit.SymbolicContinuousCallback([u ~ 0], Equation[]; affect_neg = nothing)
+    return System(Equation[], t, vars, []; name, continuous_events = [event])
+end

@@ -179,9 +179,11 @@ end
     ressa = PR.SimpleDieselEngineReversingTransient(tstops = Float64[], saveat = 0.02)
     solsa = ressa.sol; esa = symbolic_container(ressa).engine
     @test successful_retcode(solsa)
-    @test length(solsa.t) == length(ts)
+    # The saved points are the grid plus the step boundaries at table entries.
+    grid = [findfirst(==(t), solsa.t) for t in ts]
+    @test all(!isnothing, grid)
     @test length(sol.t) < length(ts) ÷ 10
-    Fsa = solsa[esa.Fuel]
+    Fsa = solsa[esa.Fuel][grid]
     @test maximum(abs.(Fsa .- F)) <= 1e-12
     @test count(diff(Fsa) .< 0) == count(diff(F) .< 0)
     @printf("  no tstops: %d accepted steps with %d decreases; dense grid %d decreases (largest fall-back %.3e kg); saveat grid %d decreases\n",
@@ -190,6 +192,10 @@ end
     # With the tstops (the analysis default) a saveat grid is nondecreasing too.
     reson = PR.SimpleDieselEngineReversingTransient(saveat = 0.02)
     Fon = reson.sol[symbolic_container(reson).engine.Fuel]
+    # Out-of-table counter: no decrease at any accepted step, with or without tstops.
+    @test all(diff(sol[e.Fuel_extrapolated]) .>= 0)
+    resdef = PR.SimpleDieselEngineReversingTransient()
+    @test all(diff(resdef.sol[symbolic_container(resdef).engine.Fuel_extrapolated]) .>= 0)
     @test successful_retcode(reson.sol)
     @test all(diff(Fon) .>= 0)
     @printf("  with tstops: saveat grid %d decreases\n", count(diff(Fon) .< 0))

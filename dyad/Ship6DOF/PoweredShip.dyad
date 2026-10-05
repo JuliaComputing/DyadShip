@@ -4,9 +4,10 @@
 `shaft.spline_a`, and set `plant.shaft_speed_order` [rpm], `plant.hotel_power_demand` [W]
 and `rudder_order` [deg].
 
-`service_distance` [m] is the distance travelled: the integral of the forward speed
-`ship.Surge` from zero at the start (the track length while there is no sway, up to
-the hull's pitch and heave motion).
+`service_distance` [m] is the integral of the forward speed `ship.Surge` from zero at
+the start. On an ahead course it is the distance travelled (the track length while there
+is no sway, up to the hull's pitch and heave motion). It is signed: it decreases while the
+ship moves astern, so it is a distance counter only for a mission that stays ahead.
 """
 partial component PoweredSingleScrewShip
   extends SingleScrewHull

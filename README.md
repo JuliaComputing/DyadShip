@@ -105,13 +105,14 @@ cites no engine or test: they are reference values, not an OEM calibration
 docstring). `assert`s reject unordered, non-finite or non-positive tables and
 a negative idle rate.
 
-The `Fuel` counter has been nondecreasing at every accepted solver step in
-every run checked; `Fuel_extrapolated` is exactly constant over steps inside
-the table but can end the one step that contains a table-end crossing up to
-about 1e-9 kg below its start, because its rate jumps there.
+The fuel counters have been nondecreasing at every accepted solver step in
+every run checked. For `Fuel_extrapolated`, whose rate jumps to zero where
+the brake power enters the table, the engine ends a solver step at each table
+entry (`Propulsion.StepAtRisingCrossing`), so the steps that follow lie
+inside the table and leave the counter exactly constant.
 Interpolated values, including a `saveat` grid, which stores the interpolant
 rather than extra steps, can fall back inside a step that spans a kink of the
-rate (1.5e-5 kg on 0.41 kg in `DieselEngineReversing` without step
+rate (4.6e-5 kg on 0.41 kg in `DieselEngineReversing` without step
 alignment; the size follows the step length, not the solver tolerance).
 `DieselEngineReversing` declares its zero-power crossings as `tstops`, which
 makes its dense fuel counter nondecreasing too; where crossing times are not
@@ -156,6 +157,12 @@ below its matching engine speed and feeds the bus above it. Everything in
 them is synthetic or ideal; they show the structure, not an installation.
 `scripts/validate_ship_power_plant.jl` checks signs, the power balance from
 engines to propeller and hotel load, and the counters.
+
+A plant written in another package extends these partials directly. The
+generated code of the extending package names the libraries that the
+inherited hull composes, so its module must import them as well:
+`MultibodyComponents`, `RotationalComponents`, `BlockComponents` and
+`ElectricalComponents`, not only the libraries its own components name.
 
 ### A tanker skeleton
 
