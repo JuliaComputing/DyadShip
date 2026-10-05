@@ -282,3 +282,39 @@ relations
   connect(pto.n, bus_ground.g)
   pto_electric_power = pto.electric_power
 end
+
+"""
+The smallest plant that fills the plant slot of a powered ship: an ideal speed governor
+on the propeller shaft and nothing else. It holds `shaft_speed_order` whatever torque
+that takes, burns no fuel and has no electrical side, so every fuel, electrical and
+shaft-machine output is zero (the coverage flags are 1) and only `shaft_power`,
+`shaft_energy` and the running time carry information. Use it to find what a hull and
+propeller ask of a plant before there is an engine to put there.
+"""
+component IdealGovernorPlant
+  extends ShipPowerPlantPorts
+  governor = RotationalComponents.Sources.VelocitySource()
+  ground = RotationalComponents.Components.Fixed()
+  "Propeller-shaft speed [rad/s]"
+  variable shaft_w::AngularVelocity
+relations
+  initial propeller_flange.phi = 0
+  connect(governor.support, ground.spline)
+  connect(governor.spline, propeller_flange)
+  governor.w_ref = shaft_speed_order * π / 30
+  shaft_w = der(propeller_flange.phi)
+  shaft_power = -propeller_flange.tau * shaft_w
+  main_engine_fuel_mass_rate = 0
+  main_engine_fuel_consumed_mass = 0
+  main_engine_fuel_extrapolated_mass = 0
+  main_engine_sfoc_covered = 1
+  genset_fuel_mass_rate = 0
+  genset_fuel_consumed_mass = 0
+  genset_fuel_extrapolated_mass = 0
+  genset_sfoc_covered = 1
+  hotel_electric_power = 0
+  genset_electric_power = 0
+  pto_electric_power = 0
+  main_engine_on = 1
+  genset_on = 0
+end

@@ -210,6 +210,39 @@ here the starboard turn is. Against the source's free-running test of a 7 m
 model, which has no full-scale counterpart, they are 24–34 % and 12–29 %
 larger. `scripts/validate_kvlcc2.jl` prints the comparison.
 
+`Ship6DOF.PoweredKVLCC2Ship` is the same hull with a free propeller shaft for
+a power plant (the pattern of `PoweredSingleScrewShip`), the open-water
+torque of the propeller, and a full-scale resistance estimate. The torque
+curve is a quadratic fit of the open-water test of the model propeller
+published with the SIMMAN 2008 workshop data; the same fit of its thrust
+column returns the thrust polynomial above. The resistance coefficient of the
+manoeuvring set is that of the 2.9 m captive model: it suits the model-scale
+manoeuvring balance, but at full scale it asks for 79 MW at 15.5 kn and
+107 rev/min. The source computed its full-scale resistance by a
+three-dimensional extrapolation on Schoenherr's friction line without
+printing the result; the powered ship repeats that method with the published
+wetted surface and the wave-making part taken as zero, which is an estimate
+and the low end of the range, not a published powering prediction. With it,
+and `IdealGovernorPlant` in the plant slot, the ship runs at:
+
+| Speed [kn] | Shaft speed [rev/min] | Thrust [kN] | Torque [kN·m] | Shaft power [MW] |
+|---|---|---|---|---|
+| 9.97 | 47.6 | 916 | 1145 | 5.70 |
+| 12.46 | 59.5 | 1432 | 1789 | 11.14 |
+| 13.95 | 66.6 | 1796 | 2245 | 15.65 |
+| 15.45 | 73.7 | 2202 | 2752 | 21.24 |
+
+The run keeps its course with a simple rudder law: with the published
+derivatives the hull is directionally unstable and does not hold a straight
+course with the rudder amidships.
+
+The turning-circle comparison above was made with the model resistance
+coefficient, and so with the propeller at 107 rev/min. With the full-scale
+estimate and 73.7 rev/min the turns are wider still: advance 4.49 (port)
+and 4.38 (starboard) ship lengths, tactical diameter 4.08 and 3.87, that is
+21–26 % and 4–14 % above the source's full-scale simulation. The slower
+propeller gives the rudder less slipstream.
+
 `Propulsion.SyntheticDieselEngineA` and `SyntheticDieselEngineB` are parameter
 presets of the one `SimpleDieselEngine`: a wrapper without equations holds the
 engine as `core` and loads `assets/presets/Synthetic/diesel_engine_{a,b}.toml`

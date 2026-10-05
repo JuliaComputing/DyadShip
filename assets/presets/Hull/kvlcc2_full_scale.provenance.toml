@@ -5,7 +5,7 @@ component = "DyadShip.Ship6DOF.HydrodynamicXYY"
 calibration_status = "transcribed"
 manufacturer = "none"
 model = "KVLCC2 (research tanker hull form; no ship of this form was built)"
-description = "Full-scale principal particulars with the non-dimensional resistance coefficient, added-mass coefficients and hull hydrodynamic derivatives that the source used in its simulations. The derivatives come from captive tests of a 2.902 m model and are applied unchanged at full scale, as the source does."
+description = "Full-scale principal particulars with the non-dimensional resistance coefficient, added-mass coefficients and hull hydrodynamic derivatives of the source. The added masses and derivatives come from captive tests of a 2.902 m model and are applied unchanged at full scale, as the source does. The resistance coefficient is the MODEL value: the source did not use it at full scale (see parameters.R2 and alternatives.full_scale_resistance)."
 reference_conditions = "Deep, calm water; design draft 20.8 m, even keel; forces non-dimensionalised by (1/2) rho Lpp d U^2 and moments by (1/2) rho Lpp^2 d U^2, taken at midship."
 uncertainty = "The source states no uncertainty for the coefficients. Its own simulation is up to 5.8 % above its free-running model test in the turning indices."
 
@@ -74,7 +74,7 @@ page = "journal p. 49 (PDF p. 13), Table 3"
 [parameters.R2]
 unit = "N s^2/m^2"
 printed = "R'0 = 0.022"
-origin = "(1/2) rho Lpp d R'0 with rho = 1025 kg/m^3: 0.5 x 1025 x 320 x 20.8 x 0.022 = 75046.4. R1 = R3 = 0. The source multiplies R'0 by the total speed squared; HydrodynamicXYY uses the surge speed, a known limitation of that component."
+origin = "(1/2) rho Lpp d R'0 with rho = 1025 kg/m^3: 0.5 x 1025 x 320 x 20.8 x 0.022 = 75046.4. R1 = R3 = 0. The source multiplies R'0 by the total speed squared; HydrodynamicXYY uses the surge speed, a known limitation of that component. R'0 = 0.022 is the resistance coefficient of the captive model. For its full-scale simulations the source states (journal p. 48, PDF p. 12) that hull resistance was calculated by a 3-dimensional extrapolation method based on Schoenherr's frictional resistance coefficient formula, and prints neither the result nor the form factor. Used at full scale this value asks for 6.1 MN of thrust and 79 MW at 15.5 kn."
 page = "journal p. 47 (PDF p. 11), Table 2"
 
 [parameters.derivatives]
@@ -91,9 +91,37 @@ status = "Ship6DOF.Propeller1Q has a constant wake fraction"
 item = "MMG rudder model: tR = 0.387, x'H = -0.464, epsilon = 1.09, kappa = 0.50, l'R = -0.710, f_alpha = 2.747"
 status = "Ship6DOF.Rudder computes lift and drag from NACA 0015 tables and its own slipstream model; it takes the rudder area and height, aH = 0.312 and the flow-straightening coefficients, but not these six. The source gives gamma_R = 0.395 for beta_R < 0 and 0.640 for beta_R > 0 in axes positive to starboard (Table 3, journal p. 49), that is 0.395 in a port turn and 0.640 in a starboard turn. Rudder selects Gamma_R_Neg when its own inflow angle is positive, which is the case in a port turn, so KVLCC2Ship sets Gamma_R_Neg = 0.395 and Gamma_R_Pos = 0.640."
 
-[[not_representable]]
-item = "open-water torque coefficient of the propeller"
-status = "not printed in the source; shaft torque and power of the KVLCC2 propeller are therefore not modelled"
+[[sources]]
+id = "SIMMAN2008"
+title = "MOERI KVLCC2 Geometry and Conditions, SIMMAN 2008 workshop (FORCE Technology)"
+url = "http://www.simman2008.dk/KVLCC/KVLCC2/kvlcc2_geometry.html"
+accessed = "2026-10-05"
+role = "wetted surface without rudder 27194 m^2 (full scale), used only in alternatives.full_scale_resistance. The page also gives propeller geometry (4 blades, P/D 0.721 at 0.7R, Ae/A0 0.431), GM 5.71 m, ixx/B 0.40, izz/Lpp 0.25, LCG 11.1 m; these are not used here."
+
+[[sources]]
+id = "SIMMAN2008-POT"
+title = "KVLCC POT data (NMRI): open-water test of the 0.0896 m model propeller, 2006-09-21, Rn 3.65e5"
+url = "http://www.simman2008.dk/PDF/KVLCC_POT_NMRI.zip"
+sha256 = "c04722b18cfcd3c4a4600084147ef8f636aea5098fe398e58999a2e5e54adfed"
+bytes = 672
+accessed = "2026-10-05"
+role = "open-water torque of the propeller (19 points of J, KT, 10KQ)"
+status_note = "the file states: KQ data are only as a guide due to the small size propeller"
+
+[alternatives.propeller_torque]
+used_by = "DyadShip.Ship6DOF.KVLCC2Hull (Propeller1Q Kq0, Kq1, Kq2)"
+value = "Kq = 0.030710 - 0.018559 J - 0.020451 J^2"
+origin = "least-squares quadratic through the 19 points of the 10KQ column of SIMMAN2008-POT, divided by 10; largest residual 2.7e-4 in KQ. The same fit of the KT column gives 0.29313, -0.27527, -0.13850, the thrust polynomial of YY2015 to four digits, so the two come from the same test."
+calibration_status = "fitted"
+
+[alternatives.full_scale_resistance]
+used_by = "DyadShip.Ship6DOF.PoweredKVLCC2Ship (R2_resistance)"
+value = "R2 = 26908.9 N s^2/m^2 (R'0 = 0.007888)"
+origin = "The method YY2015 names for its full-scale runs, repeated with public numbers. Model total coefficient on the wetted surface: C_T = R'0 Lpp d / S = 0.022 x 6656 / 27194 = 5.3847e-3. Schoenherr friction coefficient, 0.242 / sqrt(C_F) = log10(Re C_F): model Re = 0.760 x 2.9091 / 1.139e-6 = 1.941e6 gives 3.8934e-3; ship Re = 7.9739 x 320 / 1.188e-6 = 2.148e9 gives 1.3960e-3. With the wave-making part taken as zero the whole coefficient scales with friction: 5.3847e-3 x 1.3960 / 3.8934 = 1.9308e-3. R2 = (1/2) x 1025 x 27194 x 1.9308e-3 = 26908.9. Resistance 1.711 MN and effective power 13.64 MW at 15.5 kn."
+assumptions = "wave-making resistance zero (form factor 1.383 follows); kinematic viscosity 1.139e-6 m^2/s for the model test and 1.188e-6 for the sea; model speed 0.760 m/s; no roughness or correlation allowance; no air resistance"
+bounds = "With the form factor unknown this is the low end. The two-dimensional (Froude) extrapolation of the same numbers, C_T = 1.3960e-3 + (5.3847e-3 - 3.8934e-3) = 2.8873e-3, gives R2 = 40240.7 and 2.559 MN at 15.5 kn."
+calibration_status = "fitted"
+status_note = "an estimate by a stated method, not a published powering prediction; none was found for this hull"
 
 [[missing_data]]
 item = "hydrostatics over draft (displacement, centre of buoyancy, metacentric radii), vertical centre of gravity, roll and pitch gyradii"

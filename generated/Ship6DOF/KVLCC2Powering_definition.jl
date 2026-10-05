@@ -5,12 +5,17 @@
 
 
 @doc Markdown.doc"""
-   KVLCC2TurningCircle(; name, U0, J_shaft, R2_resistance, rpm, rudder_deg, t_rudder)
+   KVLCC2Powering(; name, U0, J_shaft, R2_resistance, rpm, Kp, Kd)
 
-Turning circle of the full-scale KVLCC2 from 15.5 kn at a constant 106.7 rpm: the rudder
-goes to `rudder_deg` (positive to port) at `t_rudder`. Advance and tactical diameter are
-read from the track (`ship.pos_x`, `ship.pos_y`) at 90° and 180° change of heading and
-compared with the published values by `scripts/validate_kvlcc2.jl`.
+Straight-line powering run of the KVLCC2 with a plant in the plant slot: the shaft order
+is held at `rpm` and the ship runs at the speed where thrust balances resistance. The
+plant is `IdealGovernorPlant`, which has no engine; the library's diesel engine is some
+twenty times too small for this ship.
+
+The rudder keeps the course with a proportional-derivative law on heading and yaw rate.
+Without it the ship does not hold a straight course: with the published derivatives the
+hull is directionally unstable, and the reaction to the propeller torque is enough to
+start a slow turn that takes the speed down within the hour.
 
 ## Parameters:
 
@@ -18,24 +23,24 @@ compared with the published values by `scripts/validate_kvlcc2.jl`.
 | ------------ | ----------------------------------- | ------ | --------------- |
 | `U0`         | Initial speed along world x: 15.5 kn                         | m/s  |   7.973889 |
 | `J_shaft`         | Shaft inertia including the propeller and entrained water (assumed)                         | --  |   4e5 |
-| `R2_resistance`         | Coefficient of the quadratic resistance law [N s²/m²]; see the two values in the description                         | --  |   75046.4 |
-| `rpm`         |                          | --  |   106.7106 |
-| `rudder_deg`         |                          | --  |   35 |
-| `t_rudder`         |                          | s  |   100 |
+| `R2_resistance`         | Coefficient of the quadratic resistance law [N s²/m²]; see the two values in the description                         | --  |   26908.9 |
+| `rpm`         |                          | --  |   73.7 |
+| `Kp`         | Course-keeping gains: rudder degrees per degree of heading error, and per degree per second of yaw rate                         | --  |   3 |
+| `Kd`         |                          | --  |   80 |
 
 ## Variables
 
 | Name         | Description                         | Units  | 
 | ------------ | ----------------------------------- | ------ |
 | `rudder_order`         | Rudder angle order [deg], positive to port                         | --  |
-| `shaft_rpm`         | Shaft speed order [rpm]                         | --  |
+| `service_distance`         | Distance travelled [m]                         | m  |
 """
-@component function KVLCC2TurningCircle(; name = nothing, U0=7.973889, J_shaft=Float64(400000.0), R2_resistance=75046.4, rpm=106.7106, rudder_deg=Float64(35), t_rudder=Float64(100), kwargs...)
+@component function KVLCC2Powering(; name = nothing, U0=7.973889, J_shaft=Float64(400000.0), R2_resistance=26908.9, rpm=73.7, Kp=Float64(3), Kd=Float64(80), kwargs...)
   isnothing(name) && throw(ArgumentError("""
     The `name` keyword must be provided. Please consider using the `@named` macro,
     like so:
   
-    @named model = KVLCC2TurningCircle()
+    @named model = KVLCC2Powering()
   """))
 
   __overrides = __build_overrides(kwargs)
@@ -73,12 +78,12 @@ compared with the published values by `scripts/validate_kvlcc2.jl`.
   __local__rpm = rpm
   append!(__params, @parameters (rpm::Real))
   __initial_conditions[rpm] = __local__rpm
-  __local__rudder_deg = rudder_deg
-  append!(__params, @parameters (rudder_deg::Real))
-  __initial_conditions[rudder_deg] = __local__rudder_deg
-  __local__t_rudder = t_rudder
-  append!(__params, @parameters (t_rudder::Real))
-  __initial_conditions[t_rudder] = __local__t_rudder
+  __local__Kp = Kp
+  append!(__params, @parameters (Kp::Real), [description = "Course-keeping gains: rudder degrees per degree of heading error, and per degree per second of yaw rate"])
+  __initial_conditions[Kp] = __local__Kp
+  __local__Kd = Kd
+  append!(__params, @parameters (Kd::Real))
+  __initial_conditions[Kd] = __local__Kd
 
   ### Final Parameters (assignments)
 
@@ -86,15 +91,15 @@ compared with the published values by `scripts/validate_kvlcc2.jl`.
 
   ### Variables (declarations)
   append!(__vars, @variables (rudder_order(t)::Real), [description = "Rudder angle order [deg], positive to port"])
-  append!(__vars, @variables (shaft_rpm(t)::Real), [description = "Shaft speed order [rpm]"])
+  append!(__vars, @variables (service_distance(t)::Real), [description = "Distance travelled [m]"])
 
   ### Variables (assignments)
   __ovr_rudder_order = pop!(__overrides, "rudder_order", nothing); isnothing(__ovr_rudder_order) || push!(__eqs, rudder_order ~ __ovr_rudder_order)
   __ovr_rudder_order__initial = pop!(__overrides, "rudder_order__initial", nothing); isnothing(__ovr_rudder_order__initial) || (__initial_conditions[rudder_order] = __ovr_rudder_order__initial)
   __ovr_rudder_order__guess = pop!(__overrides, "rudder_order__guess", nothing)
-  __ovr_shaft_rpm = pop!(__overrides, "shaft_rpm", nothing); isnothing(__ovr_shaft_rpm) || push!(__eqs, shaft_rpm ~ __ovr_shaft_rpm)
-  __ovr_shaft_rpm__initial = pop!(__overrides, "shaft_rpm__initial", nothing); isnothing(__ovr_shaft_rpm__initial) || (__initial_conditions[shaft_rpm] = __ovr_shaft_rpm__initial)
-  __ovr_shaft_rpm__guess = pop!(__overrides, "shaft_rpm__guess", nothing)
+  __ovr_service_distance = pop!(__overrides, "service_distance", nothing); isnothing(__ovr_service_distance) || push!(__eqs, service_distance ~ __ovr_service_distance)
+  __ovr_service_distance__initial = pop!(__overrides, "service_distance__initial", nothing); isnothing(__ovr_service_distance__initial) || (__initial_conditions[service_distance] = __ovr_service_distance__initial)
+  __ovr_service_distance__guess = pop!(__overrides, "service_distance__guess", nothing)
 
   ### Constants
   __constants = Any[]
@@ -211,22 +216,19 @@ compared with the published values by `scripts/validate_kvlcc2.jl`.
   # Subcomponent rudder of type DyadShip.Ship6DOF.Rudder
   rudder_overrides = __pop_subcomponent_overrides!(__overrides, "rudder")
   push!(__systems, @named rudder = DyadShip.Ship6DOF.Rudder(; Lpp=Float64(320), B=Float64(58), Cb=0.81, T=20.8, C=7.12, s=15.8, Rudder_distance=7.4, a_h=0.312, Gamma_R_Pos=0.64, Gamma_R_Neg=0.395, MaxRudderAngularSpeed=1.76, rudder_overrides...))
-  # Subcomponent governor of type RotationalComponents.Sources.VelocitySource
-  governor_overrides = __pop_subcomponent_overrides!(__overrides, "governor")
-  push!(__systems, @named governor = RotationalComponents.Sources.VelocitySource(; governor_overrides...))
-  # Subcomponent ground of type RotationalComponents.Components.Fixed
-  ground_overrides = __pop_subcomponent_overrides!(__overrides, "ground")
-  push!(__systems, @named ground = RotationalComponents.Components.Fixed(; ground_overrides...))
+  # Subcomponent plant of type DyadShip.Ship6DOF.IdealGovernorPlant
+  plant_overrides = __pop_subcomponent_overrides!(__overrides, "plant")
+  push!(__systems, @named plant = DyadShip.Ship6DOF.IdealGovernorPlant(; plant_overrides...))
 
   ### Check there are no unmatched overrides
   isempty(__overrides) || throw(ArgumentError("overrides: [$(join(keys(__overrides), ", "))] don't match names found in model. These names may exist in the model but could have been conditionally excluded."))
 
   ### Guesses
   isnothing(__ovr_rudder_order__guess) || (__guesses[rudder_order] = __ovr_rudder_order__guess)
-  isnothing(__ovr_shaft_rpm__guess) || (__guesses[shaft_rpm] = __ovr_shaft_rpm__guess)
+  isnothing(__ovr_service_distance__guess) || (__guesses[service_distance] = __ovr_service_distance__guess)
 
   ### Initialization Equations
-  push!(__initialization_eqs, shaft.phi ~ 0)
+  push!(__initialization_eqs, service_distance ~ 0)
 
   ### Assertions
   __assertions = []
@@ -239,9 +241,10 @@ compared with the published values by `scripts/validate_kvlcc2.jl`.
   push!(__eqs, rudder.Current_x ~ 0)
   push!(__eqs, rudder.Current_y ~ 0)
   push!(__eqs, rudder.Rudder_Order ~ rudder_order)
-  push!(__eqs, governor.w_ref ~ shaft_rpm * π / 30)
-  push!(__eqs, rudder_order ~ ifelse(t > t_rudder, rudder_deg, 0))
-  push!(__eqs, shaft_rpm ~ rpm)
+  push!(__eqs, ModelingToolkit.D_nounits(service_distance) ~ ship.Surge)
+  push!(__eqs, plant.shaft_speed_order ~ rpm)
+  push!(__eqs, plant.hotel_power_demand ~ 0)
+  push!(__eqs, rudder_order ~ -(Kp * ship.Yaw + Kd * ship.YawRate) * 180 / π)
   push!(__eqs, connect(ship.frame_a, hydro.frame_a, zrp.frame_a, prop_mount.frame_a, rudder_mount.frame_a))
   push!(__eqs, connect(prop_mount.frame_b, prop.frame_a))
   push!(__eqs, connect(rudder_mount.frame_b, rudder.frame_a))
@@ -253,10 +256,9 @@ compared with the published values by `scripts/validate_kvlcc2.jl`.
   push!(__eqs, connect(prop.Propeller_flow_diameter, rudder.Propeller_flow_diameter))
   push!(__eqs, connect(prop.Wake_Fraction, rudder.Wake_Fraction))
   push!(__eqs, connect(shaft.spline_b, prop.flange))
-  push!(__eqs, connect(governor.support, ground.spline))
-  push!(__eqs, connect(governor.spline, shaft.spline_a))
+  push!(__eqs, connect(plant.propeller_flange, shaft.spline_a))
 
   # Return completely constructed System
   return System(__eqs, t, __vars, __params; systems=__systems, initial_conditions=__initial_conditions, guesses=__guesses, name, initialization_eqs=__initialization_eqs, bindings=__bindings, assertions=__assertions)
 end
-export KVLCC2TurningCircle
+export KVLCC2Powering
