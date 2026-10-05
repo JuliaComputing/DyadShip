@@ -13,7 +13,11 @@ access; table and page of every value are in
 - `ship`: displacement 312 600 m³ (320 415 t at 1025 kg/m³), centre of gravity 11.2 m
   forward of midship, yaw gyradius 0.25 Lpp (Table 1 and the simulation conditions).
 - `prop`: diameter 9.86 m, open-water thrust `Kt = 0.2931 - 0.2753 J - 0.1385 J²`,
-  thrust deduction 0.220, full-scale wake fraction 0.35.
+  thrust deduction 0.220, full-scale wake fraction 0.35. The open-water torque
+  `10 Kq = 0.3071 - 0.1856 J - 0.2045 J²` is a quadratic fit of the open-water test of the
+  same 0.0896 m model propeller published with the SIMMAN 2008 workshop data; the same
+  fit of its thrust column returns the source's thrust polynomial to four digits. That
+  file warns that the torque of so small a propeller is a guide only.
 - `rudder`: area 112.5 m² and height 15.80 m (chord 7.12 m), `a_H` = 0.312,
   flow-straightening coefficient 0.395 in a port turn and 0.640 in a starboard turn
   (the source's values for `β_R < 0` and `β_R > 0` in its starboard-positive axes; `Rudder`
@@ -37,32 +41,51 @@ What the existing components cannot represent of the source's model: the MMG rud
 force model and its coefficients (`t_R`, `x'_H`, `ε`, `κ`, `l'_R`, `f_α`), since `Rudder`
 uses NACA 0015 lift and drag tables with its own slipstream model; the change of the
 propeller wake with drift; resistance on the total speed rather than the surge speed.
-The open-water torque is not published, so `prop.ShaftPower` is zero here.
 
-Extending components set `rudder_order` [deg, positive to port] and `shaft_rpm`.
+## Resistance: two values, for two purposes
+
+`R2_resistance` is the coefficient of the quadratic resistance law of `hydro`.
+
+- Default 75 046 N s²/m²: the source's `R'0` = 0.022. That is the resistance coefficient
+  of the 2.9 m captive model. It is right for reproducing the model-scale balance of
+  the manoeuvring tests; at full scale it asks for 79 MW at 15.5 kn and 106.7 rev/min,
+  which is not a ship's powering point. `KVLCC2Ship` keeps it so its results are
+  unchanged.
+- 26 909 N s²/m² (`PoweredKVLCC2Ship`): a full-scale estimate. The source says its
+  full-scale runs used a resistance from "a 3-dimensional extrapolation method based on
+  Schoenherr's frictional resistance coefficient formula" but prints neither that
+  resistance nor the form factor. This value repeats the method with the wetted
+  surface 27 194 m² from the SIMMAN 2008 data and the wave-making part taken as zero:
+  the model's total coefficient 5.385e-3 is scaled by the ratio of the Schoenherr
+  friction coefficients at the two Reynolds numbers (1.396e-3 / 3.893e-3), giving
+  1.931e-3 on the wetted surface, 1.71 MN and 13.6 MW effective power at 15.5 kn. No
+  roughness allowance. With the form factor unknown this is the low end; the two-
+  dimensional (Froude) extrapolation of the same numbers gives 40 241 N s²/m², 2.56 MN.
+  It is an estimate by a stated method, not a published powering prediction; none was
+  found for this hull.
+
+Extending components set `rudder_order` [deg, positive to port] and drive the shaft at
+`shaft.spline_a` (positive rotation is ahead).
 """
-partial component KVLCC2Ship
+partial component KVLCC2Hull
   "Initial speed along world x: 15.5 kn"
   parameter U0::Velocity = 7.973889
   "Shaft inertia including the propeller and entrained water (assumed)"
   parameter J_shaft::Real = 4e5
+  "Coefficient of the quadratic resistance law [N s²/m²]; see the two values in the description"
+  parameter R2_resistance::Real = 75046.4
   world = MultibodyComponents.World(n = [0, 0, -1], g = 9.80665, render = false, nominal_length = 320)
   ship = ShipBody(Lpp = 320, B = 58, Cb = 0.810, mass = 320415000, CoG = [171.2, 0, 18], I_zz = 320415000 * 6400, n_Disp = 1, Disp_Table = [[15404567.3, 1]], n_LCB = 1, LCB_Table = [[171.2, 0]], n_VCB = 1, VCB_Table = [[0.52, 1]], BMt_Table = [[259.568, -1]], BMl_Table = [[7901.23, -1]], ini_Pos = [0, 0, -20.8], ini_Vel = [U0, 0, 0])
-  hydro = HydrodynamicXYY(apply "dyad://DyadShip/presets/Hull/kvlcc2_full_scale.toml")
+  hydro = HydrodynamicXYY(apply "dyad://DyadShip/presets/Hull/kvlcc2_full_scale.toml", R2 = R2_resistance)
   zrp = HydrodynamicZRP(Lpp = 320, B = 58, mass = 320415000, Cw = 0.9, GM = 5.3, GM_L = 372)
   prop_mount = MultibodyComponents.FixedTranslation(r = [6, 0, 5.5], render = false)
-  prop = Propeller1Q(Diameter = 9.86, Lpp = 320, B = 58, Cb = 0.810, WakeFraction = 0.35, ThrustDeduction = 0.220, Rudder_distance = 7.4, open_water_polynomial = 1, Kt0 = 0.2931, Kt1 = -0.2753, Kt2 = -0.1385)
+  prop = Propeller1Q(Diameter = 9.86, Lpp = 320, B = 58, Cb = 0.810, WakeFraction = 0.35, ThrustDeduction = 0.220, Rudder_distance = 7.4, open_water_polynomial = 1, Kt0 = 0.2931, Kt1 = -0.2753, Kt2 = -0.1385, Kq0 = 0.030710, Kq1 = -0.018559, Kq2 = -0.020451)
   shaft = RotationalComponents.Components.Inertia(J = J_shaft)
-  governor = RotationalComponents.Sources.VelocitySource()
-  ground = RotationalComponents.Components.Fixed()
   rudder_mount = MultibodyComponents.FixedTranslation(r = [0, 0, 16.5], render = false)
   rudder = Rudder(Lpp = 320, B = 58, Cb = 0.810, T = 20.8, C = 7.12, s = 15.8, Rudder_distance = 7.4, a_h = 0.312, Gamma_R_Pos = 0.640, Gamma_R_Neg = 0.395, MaxRudderAngularSpeed = 1.76)
   "Rudder angle order [deg], positive to port"
   variable rudder_order::Real
-  "Shaft speed order [rpm]"
-  variable shaft_rpm::Real
 relations
-  initial shaft.phi = 0
   connect(ship.frame_a, hydro.frame_a, zrp.frame_a, prop_mount.frame_a, rudder_mount.frame_a)
   connect(prop_mount.frame_b, prop.frame_a)
   connect(rudder_mount.frame_b, rudder.frame_a)
@@ -79,11 +102,74 @@ relations
   connect(prop.Propeller_speed, rudder.Propeller_speed)
   connect(prop.Propeller_flow_diameter, rudder.Propeller_flow_diameter)
   connect(prop.Wake_Fraction, rudder.Wake_Fraction)
+  connect(shaft.spline_b, prop.flange)
+  rudder.Rudder_Order = rudder_order
+end
+
+"""
+`KVLCC2Hull` with its shaft driven by an ideal speed governor that tracks `shaft_rpm`:
+the counterpart of `StandardShip`, used for the manoeuvring comparison. No engine.
+"""
+partial component KVLCC2Ship
+  extends KVLCC2Hull
+  governor = RotationalComponents.Sources.VelocitySource()
+  ground = RotationalComponents.Components.Fixed()
+  "Shaft speed order [rpm]"
+  variable shaft_rpm::Real
+relations
+  initial shaft.phi = 0
   connect(governor.support, ground.spline)
   connect(governor.spline, shaft.spline_a)
-  connect(shaft.spline_b, prop.flange)
   governor.w_ref = shaft_rpm * π / 30
-  rudder.Rudder_Order = rudder_order
+end
+
+"""
+`KVLCC2Hull` prepared for a power plant, with the full-scale resistance estimate: the
+counterpart of `PoweredSingleScrewShip`. Extending components add one subcomponent
+`plant` that extends `ShipPowerPlantPorts`, connect `plant.propeller_flange` to
+`shaft.spline_a`, and set `plant.shaft_speed_order` [rpm], `plant.hotel_power_demand` [W]
+and `rudder_order` [deg]. `service_distance` [m] is the integral of the forward speed.
+
+At the propeller the plant sees the torque of the published open-water curve: about
+2.7 MN·m and 21 MW at 15.5 kn and 74 rev/min with this resistance estimate.
+"""
+partial component PoweredKVLCC2Ship
+  extends KVLCC2Hull(R2_resistance = 26908.9)
+  "Distance travelled [m]"
+  variable service_distance::Length
+relations
+  initial service_distance = 0
+  der(service_distance) = ship.Surge
+end
+
+"""
+Straight-line powering run of the KVLCC2 with a plant in the plant slot: the shaft order
+is held at `rpm` and the ship runs at the speed where thrust balances resistance. The
+plant is `IdealGovernorPlant`, which has no engine; the library's diesel engine is some
+twenty times too small for this ship.
+
+The rudder keeps the course with a proportional-derivative law on heading and yaw rate.
+Without it the ship does not hold a straight course: with the published derivatives the
+hull is directionally unstable, and the reaction to the propeller torque is enough to
+start a slow turn that takes the speed down within the hour.
+"""
+test component KVLCC2Powering
+  extends PoweredKVLCC2Ship
+  parameter rpm::Real = 73.7
+  "Course-keeping gains: rudder degrees per degree of heading error, and per degree per second of yaw rate"
+  parameter Kp::Real = 3
+  parameter Kd::Real = 80
+  plant = IdealGovernorPlant()
+relations
+  connect(plant.propeller_flange, shaft.spline_a)
+  plant.shaft_speed_order = rpm
+  plant.hotel_power_demand = 0
+  rudder_order = -(Kp * ship.Yaw + Kd * ship.YawRate) * 180 / π
+end
+
+analysis KVLCC2PoweringTransient
+  extends TransientAnalysis(stop = 1500.0)
+  model = KVLCC2Powering()
 end
 
 """
