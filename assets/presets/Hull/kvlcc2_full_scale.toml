@@ -1,0 +1,32 @@
+# KVLCC2 research tanker, full scale: resistance coefficient, added masses and MMG hull
+# derivatives for Ship6DOF.HydrodynamicXYY. Transcribed and converted from Yasukawa and
+# Yoshimura (2015); see kvlcc2_full_scale.provenance.toml for table, page and arithmetic.
+# Units: Lpp, B, Draft, Xg m; mx, my fractions of the displacement mass; Jz m²;
+# R1 N s/m, R2 N s²/m², R3 N s³/m³; derivatives non-dimensional.
+Lpp = 320.0
+B = 58.0
+Draft = 20.8
+Cb = 0.810
+Xg = 0.0
+mx = 0.0749492
+my = 0.7597123
+Jz = 3837.399
+R1 = 0.0
+R2 = 75046.4
+R3 = 0.0
+X_vv = -0.040
+X_vr = 0.002
+X_rr = 0.011
+X_vvvv = 0.771
+Y_v = -0.315
+Y_r = 0.083
+Y_vvv = -1.607
+Y_vvr = 0.379
+Y_vrr = -0.391
+Y_rrr = 0.008
+N_v = -0.137
+N_r = -0.049
+N_vvv = -0.030
+N_vvr = -0.294
+N_vrr = 0.055
+N_rrr = -0.013

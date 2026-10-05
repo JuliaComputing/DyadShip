@@ -82,6 +82,16 @@ component Propeller1Q
   parameter ThrustDeduction::Real = (0.625 * B / Lpp + 0.08) + (0.165 - 0.25 * B / Lpp) / ((525 - 8060 * B / Lpp + 20300 * (B / Lpp)^2) * (0.98 - Cb)^3 + 1) - 0.01 * Fa + 2 * (Diameter / Lpp - 0.04)
   "Relative rotative efficiency (Holtrop 1988, single screw)"
   parameter RotativeRelative::Real = 0.9922 - 0.05908 * Ae_Ao + 0.07424 * (Cp - 0.0225 * lcb)
+  "1 to take the open-water curves from the polynomials below instead of the Wageningen B-series regression; 0 otherwise"
+  parameter open_water_polynomial::Real = 0
+  "Open-water thrust coefficient polynomial `Kt = Kt0 + Kt1 J + Kt2 J²`"
+  parameter Kt0::Real = 0
+  parameter Kt1::Real = 0
+  parameter Kt2::Real = 0
+  "Open-water torque coefficient polynomial `Kq = Kq0 + Kq1 J + Kq2 J²`; left at zero the shaft torque and power are zero"
+  parameter Kq0::Real = 0
+  parameter Kq1::Real = 0
+  parameter Kq2::Real = 0
   "Shaft-speed floor keeping the open-water formulas defined at rest [rad/s]"
   parameter w_floor::AngularVelocity = 1e-3
   "Lower clamp on the advance ratio fed to the regression"
@@ -121,8 +131,8 @@ relations
 
   AdvanceSpeed = ShipSpeed * (1 - WakeFraction)
   J = clamp(AdvanceSpeed / (n * Diameter), J_min, J_max)
-  Kt = wageningen_kt(J, P_D, Ae_Ao, Z)
-  Kq = wageningen_kq(J, P_D, Ae_Ao, Z)
+  Kt = ifelse(open_water_polynomial > 0.5, Kt0 + Kt1 * J + Kt2 * J^2, wageningen_kt(J, P_D, Ae_Ao, Z))
+  Kq = ifelse(open_water_polynomial > 0.5, Kq0 + Kq1 * J + Kq2 * J^2, wageningen_kq(J, P_D, Ae_Ao, Z))
   Thrust_Kt = Kt * SeaDensity * n^2 * Diameter^4
   Torque_Kq = Kq * SeaDensity * n^2 * Diameter^5
 

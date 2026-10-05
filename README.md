@@ -184,6 +184,31 @@ what each piece can and cannot represent.
 tank loses exactly what the engines meter; a ballast transfer conserves
 water), the hydrostatic response and the power bookkeeping.
 
+### A published tanker hull: KVLCC2
+
+`Ship6DOF.KVLCC2Ship` is the KVLCC2 research tanker at full scale (320 m,
+312 600 m³). Its hull forces come from the file
+`assets/presets/Hull/kvlcc2_full_scale.toml`: the principal particulars,
+resistance coefficient, added masses and sixteen hull derivatives of
+Yasukawa and Yoshimura, "Introduction of MMG standard method for ship
+maneuvering predictions", J. Mar. Sci. Technol. 20 (2015) 37–52 (open
+access). The sidecar next to the file gives the table and page of every
+value and the arithmetic of the converted ones. `Ship6DOF.Propeller1Q` takes
+the published open-water thrust polynomial through its new optional
+polynomial parameters.
+
+The source's model has three degrees of freedom and its own rudder and wake
+models. This one has six degrees of freedom, the library's `Rudder` and a
+constant wake fraction; the vertical hydrostatics, the height of the centre
+of gravity and the positions of propeller and rudder are stated assumptions.
+With nothing tuned, the 35° turning circles from 15.5 kn come out with an
+advance of 4.04 (port) and 4.16 (starboard) ship lengths and a tactical
+diameter of 3.75 and 3.98, against 3.56 / 3.62 and 3.59 / 3.71 in the
+source's own full-scale simulation: the advance is 13–15 % larger and the
+tactical diameter 4–7 % larger. Against the source's free-running test of a
+7 m model, which has no full-scale counterpart, they are 28–30 % and
+19–22 % larger. `scripts/validate_kvlcc2.jl` prints the comparison.
+
 `Propulsion.SyntheticDieselEngineA` and `SyntheticDieselEngineB` are parameter
 presets of the one `SimpleDieselEngine`: a wrapper without equations holds the
 engine as `core` and loads `assets/presets/Synthetic/diesel_engine_{a,b}.toml`

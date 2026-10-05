@@ -1,0 +1,104 @@
+# Provenance sidecar. NOT a parameter file: never reference it in an apply clause.
+schema = "dyadship.provenance/1"
+asset = "kvlcc2_full_scale.toml"
+component = "DyadShip.Ship6DOF.HydrodynamicXYY"
+calibration_status = "transcribed"
+manufacturer = "none"
+model = "KVLCC2 (research tanker hull form; no ship of this form was built)"
+description = "Full-scale principal particulars with the non-dimensional resistance coefficient, added-mass coefficients and hull hydrodynamic derivatives that the source used in its simulations. The derivatives come from captive tests of a 2.902 m model and are applied unchanged at full scale, as the source does."
+reference_conditions = "Deep, calm water; design draft 20.8 m, even keel; forces non-dimensionalised by (1/2) rho Lpp d U^2 and moments by (1/2) rho Lpp^2 d U^2, taken at midship."
+uncertainty = "The source states no uncertainty for the coefficients. Its own simulation is up to 5.8 % above its free-running model test in the turning indices."
+
+[[sources]]
+id = "YY2015"
+title = "Introduction of MMG standard method for ship maneuvering predictions"
+authors = "H. Yasukawa, Y. Yoshimura"
+journal = "Journal of Marine Science and Technology 20 (2015) 37-52"
+doi = "10.1007/s00773-014-0293-y"
+url = "https://link.springer.com/article/10.1007/s00773-014-0293-y"
+license = "CC BY 4.0 (open access)"
+sha256 = "d5835e9abac2047eda3440ba650101f6a5760d88e6cfed9bb3af5ba011086b42"
+bytes = 940142
+accessed = "2026-10-05"
+pages = "PDF pages 6, 11, 12, 13, 14 (journal pages 42, 47, 48, 49, 50)"
+role = "every value in the applied file"
+
+[parameters.Lpp]
+unit = "m"
+printed = "320.0"
+origin = "Table 1, column Fullscale"
+page = "journal p. 42 (PDF p. 6)"
+
+[parameters.B]
+unit = "m"
+printed = "58.0"
+origin = "Table 1, column Fullscale"
+page = "journal p. 42 (PDF p. 6)"
+
+[parameters.Draft]
+unit = "m"
+printed = "d = 20.8"
+origin = "Table 1, column Fullscale"
+page = "journal p. 42 (PDF p. 6)"
+
+[parameters.Cb]
+unit = "1"
+printed = "0.810"
+origin = "Table 1"
+page = "journal p. 42 (PDF p. 6)"
+
+[parameters.Xg]
+unit = "m"
+printed = "xG = 11.2 (Table 1)"
+origin = "Set to 0, not 11.2: in HydrodynamicXYY this parameter only moves the point where the added-mass forces act, and the source's equations of motion (Eq. 4) are written at midship with the added masses there. The rigid-body centre of gravity 11.2 m forward of midship belongs to the hull body, not to this file."
+page = "journal p. 40 (PDF p. 4), Eq. 4; Table 1"
+
+[parameters.mx]
+unit = "fraction of displacement mass"
+printed = "m'x = 0.022"
+origin = "m'x / m' with m' = displacement volume / ((1/2) Lpp^2 d) = 312600 / 1064960 = 0.293532; 0.022 / 0.293532 = 0.0749492"
+page = "journal p. 49 (PDF p. 13), Table 3; volume from Table 1"
+
+[parameters.my]
+unit = "fraction of displacement mass"
+printed = "m'y = 0.223"
+origin = "0.223 / 0.293532 = 0.7597123"
+page = "journal p. 49 (PDF p. 13), Table 3"
+
+[parameters.Jz]
+unit = "m^2 (added yaw inertia per unit displacement mass)"
+printed = "J'z = 0.011"
+origin = "J'z (1/2) Lpp^4 d / volume = 0.011 x 1.09051904e11 / 312600 = 3837.399"
+page = "journal p. 49 (PDF p. 13), Table 3"
+
+[parameters.R2]
+unit = "N s^2/m^2"
+printed = "R'0 = 0.022"
+origin = "(1/2) rho Lpp d R'0 with rho = 1025 kg/m^3: 0.5 x 1025 x 320 x 20.8 x 0.022 = 75046.4. R1 = R3 = 0. The source multiplies R'0 by the total speed squared; HydrodynamicXYY uses the surge speed, a known limitation of that component."
+page = "journal p. 47 (PDF p. 11), Table 2"
+
+[parameters.derivatives]
+unit = "1"
+printed = "X'vv -0.040, X'vr 0.002, X'rr 0.011, X'vvvv 0.771, Y'v -0.315, Y'R 0.083, Y'vvv -1.607, Y'vvr 0.379, Y'vrr -0.391, Y'rrr 0.008, N'v -0.137, N'R -0.049, N'vvv -0.030, N'vvr -0.294, N'vrr 0.055, N'rrr -0.013"
+origin = "Table 3 'Hydrodynamic force coefficients used in the simulations', copied. These are the hull-only values: Table 2 prints the measured combinations that still contain mass terms (for example X'vr + m' + m'y = 0.518, Y'R - m' - m'x = -0.233). The source's axes are y to starboard and yaw to starboard; this library's are y to port and yaw to port. Reversing both v and r leaves every coefficient unchanged, because the Y and N polynomials are odd and the X polynomial even in (v, r) together."
+page = "journal p. 49 (PDF p. 13), Table 3"
+
+[[not_representable]]
+item = "propeller wake change with drift, (1 - wP)/(1 - wP0) of Eq. 16 with C1 = 2.0, C2 = 1.6 / 1.1"
+status = "Ship6DOF.Propeller1Q has a constant wake fraction"
+
+[[not_representable]]
+item = "MMG rudder model: tR = 0.387, x'H = -0.464, epsilon = 1.09, kappa = 0.50, l'R = -0.710, f_alpha = 2.747"
+status = "Ship6DOF.Rudder computes lift and drag from NACA 0015 tables and its own slipstream model; it takes the rudder area and height, aH = 0.312 and the flow-straightening coefficients 0.395 / 0.640, but not these six"
+
+[[not_representable]]
+item = "open-water torque coefficient of the propeller"
+status = "not printed in the source; shaft torque and power of the KVLCC2 propeller are therefore not modelled"
+
+[[missing_data]]
+item = "hydrostatics over draft (displacement, centre of buoyancy, metacentric radii), vertical centre of gravity, roll and pitch gyradii"
+status = "not in the source, whose model has three degrees of freedom. The KVLCC2 ship in this library uses stated assumptions for them."
+
+[[missing_data]]
+item = "full-scale trial"
+status = "none exists; the source compares with free-running tests of a 7 m model"
