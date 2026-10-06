@@ -1,7 +1,7 @@
 """
-Connectors of `Ship6DOF.Propeller1Q`, without any equation. Parameter-preset wrappers
-extend this, hold one `Ship6DOF.Propeller1Q` as `core` and connect each port to it, so a
-preset can replace `Propeller1Q` in an assembly without rewiring.
+Connectors of `Ship6DOF.Propeller1Q`, without any equation. Kept for name stability:
+since Dyad 3.5 a parameter preset extends `Ship6DOF.Propeller1Q` itself and inherits its
+ports, so a preset still replaces `Propeller1Q` in an assembly without rewiring.
 
 The meaning and units of every port are those documented on `Ship6DOF.Propeller1Q`.
 """

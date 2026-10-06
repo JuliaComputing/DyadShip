@@ -271,9 +271,9 @@ steps the pitch:
 | 0.6 | 4.330 | 0.432 | 60.4 | 37.9 | 397 |
 
 `Propulsion.SyntheticDieselEngineA` and `SyntheticDieselEngineB` are parameter
-presets of the one `SimpleDieselEngine`: a wrapper without equations holds the
-engine as `core` and loads `assets/presets/Synthetic/diesel_engine_{a,b}.toml`
-with an `apply` clause, which is the path Dyad 3.4 supports for a table whose
+presets of the one `SimpleDieselEngine`: a wrapper without equations extends the
+engine and loads `assets/presets/Synthetic/diesel_engine_{a,b}.toml` with an
+`apply` clause on the `extends` clause (Dyad 3.5), also for a table whose
 length differs from the default (six and three knots here; the file sets the
 structural `n_sfoc` together with the arrays). Both files are **synthetic**:
 round numbers invented to exercise the mechanism, not measurements,

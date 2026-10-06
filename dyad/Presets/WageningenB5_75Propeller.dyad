@@ -12,25 +12,10 @@ publication. Hull-dependent parameters (wake fraction, thrust deduction, relativ
 rotative efficiency) keep the defaults of `Propeller1Q`. Provenance is recorded next to
 the file in `wageningen_b5_75.provenance.toml`.
 
-A thin wrapper with no equations of its own: it holds the one `Propeller1Q` as `core`,
-loads the file with an `apply` clause on that instance and connects every port. Change a
+A thin wrapper with no equations of its own: it extends the one `Propeller1Q` and
+loads the file with an `apply` clause on that `extends` clause. Change a
 value by editing a copy of the file or by using `Propeller1Q` directly.
 """
 component WageningenB5_75Propeller
-  extends Propeller1QPorts
-  core = DyadShip.Ship6DOF.Propeller1Q(apply "dyad://DyadShip/presets/Propeller/wageningen_b5_75.toml")
-relations
-  connect(flange, core.flange)
-  connect(frame_a, core.frame_a)
-  connect(Current_x, core.Current_x)
-  connect(Current_y, core.Current_y)
-  connect(core.Thrust, Thrust)
-  connect(core.Propeller_flow_diameter, Propeller_flow_diameter)
-  connect(core.Propeller_speed, Propeller_speed)
-  connect(core.Wake_Fraction, Wake_Fraction)
-  connect(core.ShipSpeed, ShipSpeed)
-  connect(core.rpm, rpm)
-  connect(core.ShaftPower, ShaftPower)
-  connect(core.ThrustPower, ThrustPower)
-  connect(core.Nu_propulsive, Nu_propulsive)
+  extends DyadShip.Ship6DOF.Propeller1Q(apply "dyad://DyadShip/presets/Propeller/wageningen_b5_75.toml")
 end

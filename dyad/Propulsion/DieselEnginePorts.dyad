@@ -1,7 +1,7 @@
 """
-Connectors of `SimpleDieselEngine`, without any equation. Parameter-preset wrappers
-extend this, hold one `SimpleDieselEngine` as `core` and connect each port to it, so
-a preset can replace `SimpleDieselEngine` in an assembly without rewiring.
+Connectors of `SimpleDieselEngine`, without any equation. Kept for name stability:
+since Dyad 3.5 a parameter preset extends `SimpleDieselEngine` itself and inherits its
+ports, so a preset still replaces `SimpleDieselEngine` in an assembly without rewiring.
 
 The meaning, units and sampling rules of every port are those documented on
 `SimpleDieselEngine`.

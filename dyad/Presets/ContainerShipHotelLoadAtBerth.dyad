@@ -19,9 +19,5 @@ A thin wrapper with no equations of its own. Change the value by editing a copy 
 file or by using `OnOffConsumer` directly.
 """
 component ContainerShipHotelLoadAtBerth
-  extends OnOffConsumerPorts
-  core = DyadShip.Machinery.OnOffConsumer(apply "dyad://DyadShip/presets/HotelLoad/hotel_load_container_ship_8k_12k_teu_at_berth.toml")
-relations
-  connect(WorkSignal, core.WorkSignal)
-  connect(core.y, y)
+  extends DyadShip.Machinery.OnOffConsumer(apply "dyad://DyadShip/presets/HotelLoad/hotel_load_container_ship_8k_12k_teu_at_berth.toml")
 end
