@@ -10,14 +10,12 @@ them as a calibration. Provenance is recorded next to the file in
 ## How presets work
 
 A preset is a parameter file plus a wrapper with no equations of its own. The wrapper
-holds the one `SimpleDieselEngine` as `core` and loads the file with an `apply` clause on
-that instance. This is the loading path that Dyad 3.4 supports for a table whose length
-differs from the default: the file sets the structural `n_sfoc` and the two arrays sized
-by it in one place, on a direct subcomponent instance. `apply` is not accepted on an
-`extends` clause or on a nested instance (`rig(engine(apply …))`), the package needs
-`TOML` among its dependencies, the file must belong
-to the package that writes the clause, and a structural parameter of a nested
-subcomponent cannot be delivered. Only `n_sfoc`, `SFOC_P`, `SFOC_g` and `m_dot_idle` are
+extends the one `SimpleDieselEngine` and loads the file with an `apply` clause on that
+`extends` clause (Dyad 3.5), so its ports and parameters are those of the engine itself.
+The file sets the structural `n_sfoc` and the two arrays sized by it in one place.
+`apply` is not accepted on a nested instance (`rig(engine(apply …))`), the package needs
+`TOML` among its dependencies, the file must belong to the package that writes the
+clause, and a component of another package cannot extend the preset. Only `n_sfoc`, `SFOC_P`, `SFOC_g` and `m_dot_idle` are
 set by the file; the controller, the torque limit and the metering equations are those of
 `SimpleDieselEngine`, and its parameter checks apply to the loaded values.
 
@@ -34,15 +32,5 @@ What happens to a file that should not be used depends on the defect:
   without a successful return code.
 """
 component SyntheticDieselEngineB
-  extends DieselEnginePorts
-  core = SimpleDieselEngine(apply "dyad://DyadShip/presets/Synthetic/diesel_engine_b.toml")
-relations
-  connect(RPM_demand, core.RPM_demand)
-  connect(core.KWh, KWh)
-  connect(core.Fuel, Fuel)
-  connect(core.Fuel_extrapolated, Fuel_extrapolated)
-  connect(core.Inst_Fuel, Inst_Fuel)
-  connect(core.ShaftPower, ShaftPower)
-  connect(core.SFOC_valid, SFOC_valid)
-  connect(flange, core.flange)
+  extends SimpleDieselEngine(apply "dyad://DyadShip/presets/Synthetic/diesel_engine_b.toml")
 end

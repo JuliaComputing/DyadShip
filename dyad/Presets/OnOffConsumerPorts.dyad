@@ -1,6 +1,6 @@
 """
-Connectors of `Machinery.OnOffConsumer`, without any equation. Parameter-preset wrappers
-extend this, hold one `OnOffConsumer` as `core` and connect both ports to it.
+Connectors of `Machinery.OnOffConsumer`, without any equation. Kept for name stability:
+since Dyad 3.5 a parameter preset extends `OnOffConsumer` itself and inherits its ports.
 """
 partial component OnOffConsumerPorts
   "On/off command: 1 = on, 0 = off"
